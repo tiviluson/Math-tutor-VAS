@@ -1,0 +1,12 @@
+services:
+  geometry-tutor:
+    build:
+      # context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - LLM_TEMPERATURE=${LLM_TEMPERATURE:-0.1}
+      - MAX_OUTPUT_TOKENS=${MAX_OUTPUT_TOKENS:-2048}
+    restart: unless-stopped

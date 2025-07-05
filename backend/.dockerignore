@@ -1,0 +1,96 @@
+# .dockerignore file for AI Geometry Tutor Backend
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+README*
+LICENSE
+CHANGELOG*
+
+# Test files
+tests/
+test_*.py
+*_test.py
+pytest.ini
+.pytest_cache/
+
+# Development files
+.env.template
+setup.bat
+DEVELOPMENT.md
+API_DOCUMENTATION.md
+
+# Logs
+logs/
+*.log
+
+# Jupyter notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Cache directories
+.cache/
+.mypy_cache/
+.pytest_cache/
+
+# Docker
+Dockerfile*
+.dockerignore
+docker-compose*.yml
+
+# Examples (exclude from production)
+examples/
+tests/
