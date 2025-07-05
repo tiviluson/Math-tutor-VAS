@@ -1,8 +1,9 @@
 services:
   geometry-tutor:
-    build:
-      # context: .
-      dockerfile: Dockerfile
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    image: tiviluson/math-tutor-vas-backend:latest
     ports:
       - "8000:8000"
     environment:
