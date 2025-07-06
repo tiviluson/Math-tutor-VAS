@@ -8,13 +8,15 @@ from typing import Optional, List
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 
-def initialize_llm():
+def initialize_llm(
+    model_name: str = "gemini-2.0-flash-exp", temperature=0.1, max_output_token=2048
+) -> Optional[ChatGoogleGenerativeAI]:
     """Initialize the Google Gemini LLM with appropriate settings."""
     try:
         llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash-exp",
-            temperature=0.1,  # Low temperature for consistent reasoning
-            max_output_tokens=2048,
+            model=model_name,
+            temperature=temperature,
+            max_output_tokens=max_output_token,
         )
         return llm
     except Exception as e:

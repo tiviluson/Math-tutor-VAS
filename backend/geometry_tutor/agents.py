@@ -83,7 +83,7 @@ def reason_and_solve(state: GraphState) -> GraphState:
     Develops a step-by-step solution for the current question using iterative reasoning.
     AI discoveries are kept separate from user's known facts until solution is validated.
     """
-    llm = initialize_llm()
+    llm = initialize_llm('gemini-2.5-pro')
     if not llm:
         state["error_message"] = "Không thể khởi tạo mô hình AI."
         return state
