@@ -24,9 +24,12 @@ def parse_problem(state: GraphState) -> GraphState:
 
     parsing_prompt = f"""
 Bạn là một chuyên gia hình học. Hãy đọc bài toán sau và trích xuất tất cả thông tin hình học, 
-các sự kiện đã cho, và các câu hỏi riêng biệt thành định dạng JSON.
+các sự kiện đã cho, các câu hỏi riêng biệt, và các bước vẽ hình thành định dạng JSON.
 
 Các câu hỏi phải được sắp xếp theo thứ tự tuần tự đúng.
+Các câu hỏi phải được viết lại chính xác, không có sự thay đổi nào so với đề bài.
+Cả các sự kiện đã cho và câu hỏi phải được viết bằng tiếng Việt.
+Các bước vẽ hình phải được mô tả chi tiết, rõ ràng để học sinh có thể vẽ lại được.
 
 Bài toán: {state['original_problem']}
 
@@ -36,7 +39,8 @@ Vui lòng trả về JSON với định dạng sau:
     "lines": ["AB", "BC", ...],
     "shapes": ["triangle ABC", "circle O", ...],
     "given_facts": ["AB = 5", "góc ABC = 90°", ...],
-    "questions": ["Chứng minh tam giác ABC vuông", "Tính diện tích tam giác", ...]
+    "questions": ["Chứng minh tam giác ABC vuông", "Tính diện tích tam giác", ...],
+    "illustration_steps": ["Vẽ đường tròn tâm O, bán kính R", "Lấy điểm A trên đường thẳng qua O", ...]
 }}
 """
 
@@ -50,6 +54,7 @@ Vui lòng trả về JSON với định dạng sau:
                 "shapes": [],
                 "given_facts": [],
                 "questions": [],
+                "illustration_steps": [],
             },
         )
 
@@ -62,6 +67,10 @@ Vui lòng trả về JSON với định dạng sau:
 
         state["questions"] = parsed_data.get("questions", [])
         state["known_facts"] = parsed_data.get("given_facts", []).copy()
+
+        # Add illustration steps from parsing
+        illustration_steps = parsed_data.get("illustration_steps", [])
+        state["illustration_steps"].extend(illustration_steps)
 
         if not state["questions"]:
             state["error_message"] = (
@@ -292,11 +301,14 @@ Hãy so sánh lập luận của học sinh với đường lối giải đúng.
 
 Nếu đúng, hãy khen ngợi và xác nhận. Nếu sai, hãy nhẹ nhàng giải thích điểm sai hoặc những gì học sinh còn thiếu.
 
+Nếu lời giải của học sinh đúng, hãy đưa ra các bước vẽ hình bổ sung để minh họa cho lời giải này.
+
 Trả về JSON với định dạng:
 {{
     "is_correct": true/false,
     "feedback": "Phản hồi chi tiết cho học sinh",
-    "score": 0-100
+    "score": 0-100,
+    "additional_illustration_steps": ["Vẽ đường chéo AB", "AB cắt CD tại E", ...] (chỉ khi is_correct = true và có bước vẽ hình bổ sung. Nếu không thì trả về mảng rỗng)
 }}
 """
 
@@ -308,6 +320,7 @@ Trả về JSON với định dạng:
                 "is_correct": False,
                 "feedback": "Không thể đánh giá lời giải",
                 "score": 0,
+                "additional_illustration_steps": [],
             },
         )
 
@@ -336,6 +349,11 @@ Trả về JSON với định dạng:
             state["known_facts"] = current_known
             # Clear AI discoveries since they're now part of known facts
             state["ai_discovered_facts"] = []
+
+            # Add additional illustration steps when solution is validated
+            additional_steps = validation_data.get("additional_illustration_steps", [])
+            if additional_steps:
+                state["illustration_steps"].extend(additional_steps)
 
     except Exception as e:
         state["final_answer"] = f"Lỗi khi đánh giá lời giải: {str(e)}"

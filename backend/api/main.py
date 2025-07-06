@@ -56,6 +56,10 @@ class SessionStatus(BaseModel):
     is_validated: bool
     session_complete: bool
     known_facts: List[str]
+    original_problem: str
+    previously_solved_questions: List[Dict[str, Any]]
+    current_question_solution: Optional[str] = None
+    illustration_steps: List[str]
     created_at: datetime
     last_activity: datetime
 
@@ -266,7 +270,7 @@ async def get_session_status(session_id: str) -> SessionStatus:
         raise HTTPException(status_code=404, detail="Session not found or expired")
 
     try:
-        status = tutor.get_status()
+        status = tutor.get_enhanced_status()
         session_info = session_manager.get_session_info(session_id)
 
         if not status["success"]:
@@ -278,7 +282,8 @@ async def get_session_status(session_id: str) -> SessionStatus:
         return SessionStatus(
             session_id=session_id,
             success=status["success"],
-            current_question_index=status["current_question_index"],
+            current_question_index=status["current_question_index"]
+            + 1,  # Convert to 1-based for API
             total_questions=status["total_questions"],
             current_question=status["current_question"],
             hint_level=status["hint_level"],
@@ -286,6 +291,10 @@ async def get_session_status(session_id: str) -> SessionStatus:
             is_validated=status["is_validated"],
             session_complete=status["session_complete"],
             known_facts=status["known_facts"],
+            original_problem=status["original_problem"],
+            previously_solved_questions=status["previously_solved_questions"],
+            current_question_solution=status["current_question_solution"],
+            illustration_steps=status["illustration_steps"],
             created_at=session_info["created_at"],
             last_activity=session_info["last_activity"],
         )

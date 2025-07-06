@@ -107,6 +107,7 @@ class ApiGeometryTutor:
                 "is_validated": self.current_state["is_validated"],
                 "session_complete": self.current_state["session_complete"],
                 "known_facts": self.current_state["known_facts"],
+                "illustration_steps": self.current_state.get("illustration_steps", []),
             }
 
         except Exception as e:
@@ -283,3 +284,56 @@ class ApiGeometryTutor:
         """Reset the current session."""
         self.current_state = None
         self.thread_id = None
+
+    def get_enhanced_status(self) -> Dict[str, Any]:
+        """Get enhanced status including original problem, solved questions, and current solution if validated."""
+        if not self.current_state:
+            return {"success": False, "error": "No active session"}
+
+        try:
+            current_question = ""
+            if self.current_state["current_question_index"] < len(
+                self.current_state["questions"]
+            ):
+                current_question = self.current_state["questions"][
+                    self.current_state["current_question_index"]
+                ]
+
+            # Get previously solved questions (questions before current index)
+            previously_solved = []
+            for i in range(self.current_state["current_question_index"]):
+                question_data = {
+                    "question_index": i + 1,
+                    "question_text": self.current_state["questions"][i],
+                    "solved": True,
+                }
+                previously_solved.append(question_data)
+
+            # Get current question solution if it's validated
+            current_solution = None
+            if self.current_state["is_validated"] and self.current_state.get(
+                "final_answer"
+            ):
+                current_solution = self.current_state["final_answer"]
+
+            return {
+                "success": True,
+                "current_question_index": self.current_state["current_question_index"],
+                "total_questions": len(self.current_state["questions"]),
+                "current_question": current_question,
+                "hint_level": self.current_state["hint_level"],
+                "hints_used": len(self.current_state["generated_hints"]),
+                "is_validated": self.current_state["is_validated"],
+                "session_complete": self.current_state["session_complete"],
+                "known_facts": self.current_state["known_facts"],
+                "original_problem": self.current_state["original_problem"],
+                "previously_solved_questions": previously_solved,
+                "current_question_solution": current_solution,
+                "illustration_steps": self.current_state.get("illustration_steps", []),
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Error getting enhanced status: {str(e)}",
+            }
