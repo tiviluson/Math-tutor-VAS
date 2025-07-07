@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +34,13 @@ export default function Home() {
   const [hints, setHints] = useState<string[]>([]);
   const [facts, setFacts] = useState<string[]>([]);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [chatMessages]);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -79,7 +86,6 @@ export default function Home() {
   if (mode === 'ask') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col items-center justify-center p-4">
-        {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold text-gray-900 mb-3 flex items-center justify-center gap-3">
             <Calculator className="h-12 w-12 text-blue-600" />
@@ -90,7 +96,6 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Question Input - Centered */}
         <div className="w-full max-w-4xl">
           <Card className="relative">
             <CardHeader>
@@ -136,7 +141,6 @@ export default function Home() {
             </CardContent>
           </Card>
 
-          {/* Ask Tutor Button - Below and Right Aligned */}
           <div className="flex justify-end mt-4">
             <Button 
               onClick={handleAskTutor}
@@ -154,9 +158,8 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col">
-      {/* Header */}
-      <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200 p-4">
+    <div className="h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col overflow-hidden">
+      <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200 p-4 flex-shrink-0">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 flex items-center justify-center gap-2">
             <Calculator className="h-6 w-6 text-blue-600" />
@@ -165,150 +168,121 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Top Row Panels */}
-      <div className="flex-none p-4">
-        <div className="grid grid-cols-10 gap-4 h-48">
-          {/* Question Space - 60% width (6 cols) */}
-          <Card className="col-span-6">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Câu hỏi</CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="text-sm bg-gray-50 rounded p-3 h-32 overflow-y-auto">
-                {question}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Hints Space - 20% width (2 cols) */}
-          <Card className="col-span-2">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Gợi ý</CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="space-y-2 h-32 overflow-y-auto">
-                {hints.length === 0 ? (
-                  <p className="text-xs text-gray-500 text-center mt-8">Chưa có gợi ý</p>
-                ) : (
-                  hints.map((hint, index) => (
-                    <div key={index} className="text-xs bg-yellow-50 p-2 rounded">
-                      {hint}
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Facts Space - 20% width (2 cols) */}
-          <Card className="col-span-2">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Kiến thức</CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="space-y-2 h-32 overflow-y-auto">
-                {facts.length === 0 ? (
-                  <p className="text-xs text-gray-500 text-center mt-8">Chưa có kiến thức</p>
-                ) : (
-                  facts.map((fact, index) => (
-                    <div key={index} className="text-xs bg-blue-50 p-2 rounded">
-                      {fact}
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Action Toolbar */}
-        <div className="mt-4 flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleMoreHints}>
-            <Lightbulb className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleGetFacts}>
-            <ListChecks className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="sm">
-            <PlayCircle className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="sm">
-            <CheckCircle className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="sm">
-            <Eye className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Main Body - Chat and Diagram */}
-      <div className="flex-1 p-4 pt-0 min-h-0">
+      <div className="flex-1 p-4 overflow-hidden">
         <div className="grid grid-cols-10 gap-4 h-full">
-          {/* Chat Pane - 60% width (6 cols) */}
-          <Card className="col-span-6 flex flex-col">
-            <CardContent className="flex-1 p-4 flex flex-col min-h-0">
-              {/* Chat Messages */}
-              <div className="flex-1 overflow-y-auto space-y-3 mb-4">
-                {chatMessages.map((message, index) => (
-                  <div key={index} className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-xs rounded-lg p-3 text-sm ${
-                      message.isUser 
-                        ? 'bg-blue-500 text-white' 
-                        : 'bg-gray-100 text-gray-900'
-                    }`}>
-                      {message.text}
-                    </div>
-                  </div>
-                ))}
-                {chatMessages.length === 0 && (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-gray-400 text-sm">Hãy bắt đầu cuộc hành trình học tập của bạn</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Chat Input */}
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Hỏi tôi bất cứ điều gì..."
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendChat()}
-                  className="flex-1"
-                />
-                <Button onClick={handleSendChat} size="sm">
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Diagram Viewer - 40% width (4 cols) */}
-          <Card className="col-span-4 flex flex-col">
-            <CardContent className="flex-1 p-4 flex flex-col min-h-0">
-              {/* Diagram Canvas */}
-              <div className="flex-1 bg-white border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center relative">
-                <div className="text-center text-gray-500">
-                  <Eye className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">Hình minh họa sẽ xuất hiện tại đây</p>
-                  <p className="text-xs text-gray-400 mt-1">Canvas JSXGraph tương tác</p>
+          <div className="col-span-6 flex flex-col h-full">
+            <Card className="flex-shrink-0 mb-4">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Câu hỏi</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="text-sm bg-gray-50 rounded p-3 h-20 overflow-y-auto mb-4">
+                  {question}
                 </div>
-              </div>
+                <div className="flex justify-between gap-4 flex-wrap">
+                  <Button variant="outline" size="sm" onClick={handleGetFacts} className="mb-2 flex-1 mx-1">
+                    <ListChecks className="h-4 w-4 mr-2" />
+                    Get facts
+                  </Button>
+                  <Button variant="outline" size="sm" className="mb-2 flex-1 mx-1">
+                    <PlayCircle className="h-4 w-4 mr-2" />
+                    Get steps
+                  </Button>
+                  <Button variant="outline" size="sm" className="mb-2 flex-1 mx-1">
+                    <Eye className="h-4 w-4 mr-2" />
+                    Visualize
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
 
-              {/* Diagram Controls */}
-              <div className="flex justify-center gap-2 mt-4">
-                <Button variant="outline" size="sm">
-                  <ZoomIn className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" size="sm">
-                  <ZoomOut className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" size="sm">
-                  <RotateCcw className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+            <Card className="flex-1 flex flex-col">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Trò chuyện với AI Tutor</CardTitle>
+              </CardHeader>
+              <CardContent className="h-full p-4 pt-0 flex flex-col">
+                <div className="flex-1 overflow-y-auto space-y-3 mb-4 pr-2" ref={chatContainerRef}>
+                  {chatMessages.map((message, index) => (
+                    <div key={index} className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-xs rounded-lg p-3 text-sm ${
+                        message.isUser 
+                          ? 'bg-blue-500 text-white' 
+                          : 'bg-gray-100 text-gray-900'
+                      }`}>
+                        {message.text}
+                      </div>
+                    </div>
+                  ))}
+                  {chatMessages.length === 0 && (
+                    <div className="flex items-center justify-center h-full">
+                      <p className="text-gray-400 text-sm">Hãy bắt đầu cuộc hành trình học tập của bạn</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-2 flex-shrink-0">
+                  <Input
+                    placeholder="Hỏi tôi bất cứ điều gì..."
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSendChat()}
+                    className="flex-1"
+                  />
+                  <Button onClick={handleSendChat} size="sm">
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="col-span-4 flex flex-col h-full gap-4">
+            <Card className="h-1/3">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Kiến thức</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 flex-1">
+                <div className="space-y-2 h-full overflow-y-auto">
+                  {facts.length === 0 ? (
+                    <p className="text-xs text-gray-500 text-center mt-8">Chưa có kiến thức</p>
+                  ) : (
+                    facts.map((fact, index) => (
+                      <div key={index} className="text-xs bg-blue-50 p-2 rounded">
+                        {fact}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="h-2/3">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Hình minh họa</CardTitle>
+              </CardHeader>
+              <CardContent className="flex-1 p-4 pt-0 flex flex-col">
+                <div className="flex-1 bg-white border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center relative">
+                  <div className="text-center text-gray-500">
+                    <Eye className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Hình minh họa sẽ xuất hiện tại đây</p>
+                    <p className="text-xs text-gray-400 mt-1">Canvas JSXGraph tương tác</p>
+                  </div>
+                </div>
+
+                <div className="flex justify-center gap-2 mt-4">
+                  <Button variant="outline" size="sm">
+                    <ZoomIn className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="sm">
+                    <ZoomOut className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="sm">
+                    <RotateCcw className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>
