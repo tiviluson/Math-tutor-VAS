@@ -413,15 +413,15 @@ async def create_session(
 
 
 @app.get("/status", response_model=SessionStatus)
-async def get_session_status(session_id: str) -> SessionStatus:
+async def get_session_status(request: SessionRequest) -> SessionStatus:
     """Get current status of a tutoring session."""
-    tutor = session_manager.get_session(session_id)
+    tutor = session_manager.get_session(request.session_id)
     if not tutor:
         raise HTTPException(status_code=404, detail="Session not found or expired")
 
     try:
         status = tutor.get_enhanced_status()
-        session_info = session_manager.get_session_info(session_id)
+        session_info = session_manager.get_session_info(request.session_id)
 
         if not status["success"]:
             raise HTTPException(status_code=400, detail=status["error"])
@@ -430,7 +430,7 @@ async def get_session_status(session_id: str) -> SessionStatus:
             raise HTTPException(status_code=404, detail="Session info not found")
 
         return SessionStatus(
-            session_id=session_id,
+            session_id=request.session_id,
             success=status["success"],
             current_question_index=status["current_question_index"]
             + 1,  # Convert to 1-based for API
