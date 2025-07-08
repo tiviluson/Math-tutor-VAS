@@ -128,8 +128,8 @@ class VizSolver:
         if os.path.exists("asymptote.jpg"):
             os.remove("asymptote.jpg")
 
-
-def get_vizualization(session_id, problem, solution):
+# Function to API
+def get_visualization(session_id, problem, solution):
     VizS = VizSolver(
         session_id=session_id,
         init_problem=problem,
