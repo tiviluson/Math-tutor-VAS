@@ -3,9 +3,7 @@ FastAPI-based REST API server for the AI Geometry Tutor.
 Supports both text-based geometry problems and image uploads for problem extraction.
 """
 
-import re
 import uuid
-import time
 import base64
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
@@ -147,20 +145,23 @@ async def process_image_to_text(image_b64: str) -> str:
 Hãy thực hiện các nhiệm vụ sau:
 1. Trích xuất toàn bộ văn bản của bài toán (nếu có) trong hình ảnh
 2. Mô tả chi tiết hình vẽ/minh họa trong bài toán (nếu có)
+3. Xác định xem có hình vẽ/minh họa trong ảnh hay không
 
 Trả về kết quả theo định dạng JSON:
 {
     "problem_text": "Văn bản bài toán đầy đủ đã được trích xuất từ hình ảnh",
     "illustration_description": "Mô tả chi tiết hình vẽ nếu có, ngược lại trả về chuỗi rỗng",
-    "has_text_in_image": true/false
+    "has_text_in_image": true/false,
+    "has_illustration_in_image": true/false
 }
 
 Yêu cầu:
 - Trích xuất chính xác toàn bộ văn bản trong hình ảnh
-- Mô tả chi tiết các yếu tố hình học (điểm, đường, góc, hình dạng, v.v...)  
+- Mô tả chi tiết các yếu tố hình học (điểm, đường, góc, hình dạng, v.v...) nếu có hình vẽ
 - Đảm bảo văn bản tiếng Việt chính xác
 - Nếu không có văn bản trong hình ảnh, trả về chuỗi rỗng cho problem_text
-- Nếu không có hình vẽ minh họa, trả về chuỗi rỗng cho illustration_description"""
+- Nếu không có hình vẽ minh họa, trả về chuỗi rỗng cho illustration_description và has_illustration_in_image = false
+- Đặt has_illustration_in_image = true nếu có bất kỳ hình vẽ, sơ đồ, biểu đồ hình học nào trong ảnh"""
 
         # Prepare the message with image
         from langchain_core.messages import HumanMessage
@@ -193,11 +194,15 @@ Yêu cầu:
             if result and "problem_text" in result:
                 # Use the extracted text from LLM
                 final_text = result["problem_text"]
-                
-                # Add illustration description if available
-                if result.get("illustration_description"):
-                    final_text += f"\n\n[Mô tả hình vẽ: {result['illustration_description']}]"
-                
+
+                # Add illustration description only if there's actually an illustration in the image
+                if result.get("has_illustration_in_image", False) and result.get(
+                    "illustration_description"
+                ):
+                    final_text += (
+                        f"\n\n[Mô tả hình vẽ: {result['illustration_description']}]"
+                    )
+
                 if final_text.strip():
                     return final_text
                 else:
