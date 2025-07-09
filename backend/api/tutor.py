@@ -122,7 +122,7 @@ class ApiGeometryTutor:
             if self.current_state["hint_level"] >= 3:
                 return {
                     "success": False,
-                    "error": "Maximum hints reached for this question",
+                    "error": "Đã đạt số gợi ý tối đa cho câu hỏi này",
                     "hint_level": self.current_state["hint_level"],
                     "max_hints_reached": True,
                 }
