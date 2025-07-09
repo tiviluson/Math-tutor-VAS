@@ -1,0 +1,115 @@
+/* Main flex container for sidebar and content */
+.app-flex-wrapper {
+    display: flex;
+    flex-direction: row;
+    margin-left: 10vw; /* Adjusted for sidebar width */
+    min-height: 93vh; /* Adjust based on navbar height */
+    overflow: hidden; /* Prevents scrollbars from appearing due to transitions */
+}
+
+.input-section-row {
+    width: 100vw; /* Extend width to full screen */
+    max-width: 100vw; /* Prevent overflow beyond viewport */
+}
+
+/* position the content relative to the collapsed sidebar */
+.content {
+  margin-left: 10vw;
+  margin-right: 2rem;
+  overflow: hidden;
+}
+
+/* Specific styles for elements within the layout based on image */
+.input-section {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 1rem; /* Space between elements */
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background-color: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.chat-box-area, .chart-visualization-area {
+    background-color: white;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    min-height: 400px; /* Example height */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    display: flex; /* Use flexbox for internal layout if needed */
+    flex-direction: column;
+}
+
+.chat-input-section {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem; /* Space above chat input */
+    padding: 1rem;
+    background-color: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.chart-controls-section {
+    display: flex;
+    justify-content: flex-end; /* Align buttons to the right */
+    gap: 0.5rem;
+    margin-top: 1rem; /* Space above chart controls */
+    padding: 1rem;
+    background-color: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+/* Specific styling for buttons to match image aesthetics */
+.dbc-button {
+    border-radius: 0.5rem;
+    font-weight: bold;
+}
+
+/* Ensure the main input text box takes available space */
+.input-text-box-col {
+    flex-grow: 1;
+}
+
+/* Adjust input styling for better visual */
+.form-control {
+    border-radius: 0.5rem !important; /* Override default Bootstrap radius */
+    padding: 0.75rem 1rem !important;
+}
+
+/* Styling for the chat box content itself */
+.chat-messages {
+    flex-grow: 1; /* Allows message area to take up available space */
+    overflow-y: auto; /* Enable scrolling for messages */
+    padding: 0.5rem;
+    border: 1px solid #eee;
+    border-radius: 0.5rem;
+    background-color: #fcfcfc;
+    margin-bottom: 0.5rem;
+}
+
+.chat-message {
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    border-radius: 0.5rem;
+    background-color: #e9ecef;
+}
+
+.upload-button {
+    display: inline-block;
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: 600;
+    color: white;
+    background-color: #007BFF; /* Bootstrap blue */
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+    transition: background-color 0.3s;
+    margin: 10px 0;
+}
