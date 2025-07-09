@@ -9,7 +9,7 @@ import json
 
 class PromptTemplates:
     """Container for all prompt templates used in the geometry tutor system."""
-    
+
     @staticmethod
     def get_parsing_prompt() -> str:
         """Template for parsing geometry problems."""
@@ -33,7 +33,12 @@ Bài toán: {problem}
 {format_instructions}"""
 
     @staticmethod
-    def get_solver_prompt_template(current_question: str, all_available_facts: List[str], reasoning_chain: List[Dict[str, Any]], format_facts_func) -> str:
+    def get_solver_prompt_template(
+        current_question: str,
+        all_available_facts: List[str],
+        reasoning_chain: List[Dict[str, Any]],
+        format_facts_func,
+    ) -> str:
         """Template for solver reasoning prompts."""
         return f"""Bạn là một chuyên gia giải toán hình học. Mục tiêu của bạn là chứng minh/giải quyết: {current_question}
 
@@ -60,32 +65,65 @@ Nếu kết luận đã đạt được mục tiêu (trả lời được câu h
 {format_instructions}"""
 
     @staticmethod
-    def get_validation_prompt_template(reasoning_chain: List[Dict[str, Any]], current_question: str, user_solution: str) -> str:
+    def get_validation_prompt_template(
+        reasoning_chain: List[Dict[str, Any]], current_question: str, user_solution: str
+    ) -> str:
         """Template for validation prompts."""
-        return f"""Bạn là một trợ giảng dạy hình học. Một chuỗi lập luận đúng là:
+        return f"""Bạn là một trợ giảng dạy hình học thân thiện và xây dựng. Một chuỗi lập luận đúng là:
 
 {json.dumps(reasoning_chain, ensure_ascii=False, indent=2)}
 
-Học sinh đã nộp lời giải sau cho câu hỏi "{current_question}":
+Học sinh đã nộp nội dung sau cho câu hỏi "{current_question}":
 
 {user_solution}
 
-Hãy so sánh lập luận của học sinh với đường lối giải đúng. Lập luận của học sinh có hợp lý không?
+Hãy phân tích nội dung học sinh vừa gửi và xác định loại tương tác:
 
-Nếu đúng, hãy khen ngợi và xác nhận. Nếu sai, hãy nhẹ nhàng giải thích điểm sai hoặc những gì học sinh còn thiếu.
+1. **Nếu là câu hỏi**: Học sinh đang hỏi về khái niệm, phương pháp, hoặc cần giải thích thêm
+   - Trả lời câu hỏi một cách rõ ràng và hữu ích
+   - Kết nối câu trả lời với bài toán hiện tại
+   - Hướng dẫn cách áp dụng vào bài toán cụ thể
+   - Đặt is_correct = false để học sinh tiếp tục làm bài
 
-Nếu lời giải của học sinh đúng, hãy đưa ra các bước vẽ hình bổ sung để minh họa cho lời giải này.
+2. **Nếu là lời giải hoàn chỉnh**: So sánh với chuỗi lập luận đúng
+   - Đánh giá tính chính xác và logic
+   - Khen ngợi những điểm đúng, chỉ ra điểm sai nếu có
+   - Đặt is_correct = true nếu đúng, false nếu sai
+
+3. **Nếu là lời giải một phần hoặc ý tưởng**: 
+   - Đánh giá phần đã làm (đúng hay sai)
+   - Khuyến khích và hướng dẫn bước tiếp theo
+   - Gợi ý thêm để học sinh hoàn thiện
+   - Đặt is_correct = false để học sinh tiếp tục
+
+4. **Nếu là phát biểu/nhận xét**: Đánh giá tính đúng đắn và liên quan
+   - Xác nhận nếu đúng, giải thích nếu sai
+   - Liên kết với bài toán hiện tại
+   - Hướng dẫn cách sử dụng thông tin này
+
+Luôn luôn:
+- Sử dụng giọng điệu khuyến khích, tích cực
+- Đưa ra phản hồi xây dựng và hữu ích
+- Khen ngợi nỗ lực của học sinh
+- Hướng dẫn bước tiếp theo nếu cần
+
+Nếu lời giải của học sinh đúng hoàn toàn, hãy đưa ra các bước vẽ hình bổ sung để minh họa cho lời giải này.
 
 Trả về JSON với định dạng:
 {{
     "is_correct": true/false,
-    "feedback": "Phản hồi chi tiết cho học sinh",
+    "feedback": "Phản hồi chi tiết, thân thiện và hỗ trợ cho học sinh",
     "score": 0-100,
     "additional_illustration_steps": ["Vẽ đường chéo AB", "AB cắt CD tại E", ...] (chỉ khi is_correct = true và có bước vẽ hình bổ sung. Nếu không thì trả về mảng rỗng)
 }}"""
 
     @staticmethod
-    def get_hint_prompt_conceptual(current_question: str, known_facts: List[str], reasoning_chain: List[Dict[str, Any]], format_facts_func) -> str:
+    def get_hint_prompt_conceptual(
+        current_question: str,
+        known_facts: List[str],
+        reasoning_chain: List[Dict[str, Any]],
+        format_facts_func,
+    ) -> str:
         """Template for conceptual hints (level 1)."""
         return f"""Bạn là một giáo viên hình học. Học sinh đang giải câu hỏi: {current_question}
 
@@ -99,7 +137,12 @@ Hãy đưa ra gợi ý khái niệm tổng quát (không tiết lộ chi tiết 
 Đặt câu hỏi hướng dẫn để học sinh tự suy nghĩ."""
 
     @staticmethod
-    def get_hint_prompt_contextual(current_question: str, known_facts: List[str], reasoning_chain: List[Dict[str, Any]], format_facts_func) -> str:
+    def get_hint_prompt_contextual(
+        current_question: str,
+        known_facts: List[str],
+        reasoning_chain: List[Dict[str, Any]],
+        format_facts_func,
+    ) -> str:
         """Template for contextual hints (level 2)."""
         return f"""Bạn là một giáo viên hình học. Học sinh đang giải câu hỏi: {current_question}
 
@@ -113,7 +156,12 @@ Hãy chỉ ra những sự kiện cụ thể từ danh sách đã biết mà h�
 Không tiết lộ bước lập luận, chỉ hướng dẫn tập trung vào thông tin nào."""
 
     @staticmethod
-    def get_hint_prompt_direct(current_question: str, known_facts: List[str], reasoning_chain: List[Dict[str, Any]], format_facts_func) -> str:
+    def get_hint_prompt_direct(
+        current_question: str,
+        known_facts: List[str],
+        reasoning_chain: List[Dict[str, Any]],
+        format_facts_func,
+    ) -> str:
         """Template for direct hints (level 3)."""
         return f"""Bạn là một giáo viên hình học. Học sinh đang giải câu hỏi: {current_question}
 
@@ -127,7 +175,9 @@ Hãy gợi ý trực tiếp bước tiếp theo mà học sinh nên thực hiệ
 Đưa ra một gợi ý cụ thể dưới dạng đề xuất."""
 
     @staticmethod
-    def get_solution_prompt(current_question: str, reasoning_chain: List[Dict[str, Any]]) -> str:
+    def get_solution_prompt(
+        current_question: str, reasoning_chain: List[Dict[str, Any]]
+    ) -> str:
         """Template for solution generation."""
         return f"""Bạn là một giáo viên hình học. Hãy viết một lời giải rõ ràng, từng bước dựa trên chuỗi logic sau.
 Giải thích mỗi bước một cách rõ ràng bằng tiếng Việt.
@@ -176,21 +226,89 @@ Yêu cầu:
 
 {format_instructions}"""
 
+    @staticmethod
+    def get_input_classification_prompt(
+        current_question: str,
+        user_input: str,
+        known_facts: List[str],
+        format_facts_func,
+    ) -> str:
+        """Template for classifying user input type (question, solution, statement, etc.)."""
+        return f"""Bạn là một trợ giảng dạy hình học. Học sinh đang làm câu hỏi: {current_question}
+
+Các sự kiện đã biết:
+{format_facts_func(known_facts)}
+
+Học sinh vừa gửi nội dung sau:
+{user_input}
+
+Hãy phân loại nội dung này và trả lời phù hợp:
+
+Phân loại các loại đầu vào:
+1. **question**: Câu hỏi về khái niệm, định nghĩa, phương pháp, hoặc yêu cầu giải thích
+2. **complete_solution**: Lời giải hoàn chỉnh từ đầu đến cuối 
+3. **partial_solution**: Lời giải một phần, ý tưởng, hoặc bước đầu
+4. **statement**: Phát biểu, nhận xét, hoặc kết luận không có lời giải chi tiết
+5. **unclear**: Nội dung không rõ ràng hoặc không liên quan
+
+{{format_instructions}}"""
+
+    @staticmethod
+    def get_question_answering_prompt(
+        current_question: str,
+        user_question: str,
+        known_facts: List[str],
+        reasoning_chain: List[Dict[str, Any]],
+        format_facts_func,
+    ) -> str:
+        """Template for answering student questions."""
+        return f"""Bạn là một giáo viên hình học giàu kinh nghiệm và thân thiện. Học sinh đang làm câu hỏi: {current_question}
+
+Các sự kiện đã biết:
+{format_facts_func(known_facts)}
+
+Chuỗi lập luận đúng (để tham khảo):
+{json.dumps(reasoning_chain, ensure_ascii=False, indent=2)}
+
+Học sinh hỏi: {user_question}
+
+Hãy trả lời câu hỏi của học sinh một cách:
+- Rõ ràng và dễ hiểu
+- Liên kết với bài toán hiện tại
+- Hướng dẫn cách áp dụng vào bài toán cụ thể
+- Khuyến khích học sinh tiếp tục tự suy nghĩ
+- Không tiết lộ hoàn toàn lời giải
+
+Trả về phản hồi hướng dẫn và khuyến khích cho học sinh."""
+
 
 class HintPromptBuilder:
     """Builder for hint prompts based on hint level."""
-    
+
     def __init__(self, prompts: PromptTemplates):
         self.prompts = prompts
-    
-    def build_hint_prompt(self, hint_level: int, current_question: str, known_facts: List[str], reasoning_chain: List[Dict[str, Any]], format_facts_func) -> str:
+
+    def build_hint_prompt(
+        self,
+        hint_level: int,
+        current_question: str,
+        known_facts: List[str],
+        reasoning_chain: List[Dict[str, Any]],
+        format_facts_func,
+    ) -> str:
         """Build hint prompt based on hint level."""
         if hint_level == 1:
-            return self.prompts.get_hint_prompt_conceptual(current_question, known_facts, reasoning_chain, format_facts_func)
+            return self.prompts.get_hint_prompt_conceptual(
+                current_question, known_facts, reasoning_chain, format_facts_func
+            )
         elif hint_level == 2:
-            return self.prompts.get_hint_prompt_contextual(current_question, known_facts, reasoning_chain, format_facts_func)
+            return self.prompts.get_hint_prompt_contextual(
+                current_question, known_facts, reasoning_chain, format_facts_func
+            )
         elif hint_level == 3:
-            return self.prompts.get_hint_prompt_direct(current_question, known_facts, reasoning_chain, format_facts_func)
+            return self.prompts.get_hint_prompt_direct(
+                current_question, known_facts, reasoning_chain, format_facts_func
+            )
         else:
             raise ValueError(f"Invalid hint level: {hint_level}")
 

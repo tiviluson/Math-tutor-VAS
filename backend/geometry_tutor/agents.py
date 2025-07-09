@@ -6,10 +6,11 @@ from typing import List, Dict
 
 from .core import GraphState, format_facts_list
 from .llm_utils import (
-    initialize_llm, 
-    create_parsing_chain, 
-    create_reasoning_chain, 
+    initialize_llm,
+    create_parsing_chain,
+    create_reasoning_chain,
     create_validation_chain,
+    create_input_classification_chain,
 )
 from .prompts import prompt_templates, hint_builder
 
@@ -30,7 +31,7 @@ def parse_problem(state: GraphState) -> GraphState:
     try:
         # Create and use the parsing chain
         parsing_chain = create_parsing_chain(llm)
-        parsed_data = parsing_chain.invoke({"problem": state['original_problem']})
+        parsed_data = parsing_chain.invoke({"problem": state["original_problem"]})
 
         state["parsed_elements"] = {
             "points": parsed_data.points,
@@ -89,16 +90,15 @@ def reason_and_solve(state: GraphState) -> GraphState:
         all_available_facts = base_facts + ai_discoveries
 
         solver_prompt = prompt_templates.get_solver_prompt_template(
-            current_question, 
-            all_available_facts, 
-            reasoning_chain, 
-            format_facts_list
+            current_question, all_available_facts, reasoning_chain, format_facts_list
         )
 
         try:
             # Create and use the reasoning chain
             reasoning_chain_processor = create_reasoning_chain(llm)
-            step_data = reasoning_chain_processor.invoke({"solver_prompt": solver_prompt})
+            step_data = reasoning_chain_processor.invoke(
+                {"solver_prompt": solver_prompt}
+            )
 
             reasoning_chain.append(
                 {
@@ -113,10 +113,7 @@ def reason_and_solve(state: GraphState) -> GraphState:
                 ai_discoveries.append(conclusion)
 
             # Check if goal is reached
-            if (
-                step_data.is_goal_reached
-                or iteration >= max_iterations - 1
-            ):
+            if step_data.is_goal_reached or iteration >= max_iterations - 1:
                 break
 
         except Exception as e:
@@ -169,12 +166,19 @@ def generate_hint(state: GraphState) -> GraphState:
         current_question,
         state["known_facts"],
         reasoning_chain,
-        format_facts_list
+        format_facts_list,
     )
 
     try:
         response = llm.invoke(hint_prompt)
-        hint_text = response.content.strip()
+        # Handle response content properly based on type
+        if hasattr(response, "content"):
+            if isinstance(response.content, str):
+                hint_text = response.content.strip()
+            else:
+                hint_text = str(response.content)
+        else:
+            hint_text = str(response)
         state["generated_hints"].append(hint_text)
 
         # Display the generated hint immediately
@@ -194,64 +198,122 @@ def generate_hint(state: GraphState) -> GraphState:
 
 def validate_solution(state: GraphState) -> GraphState:
     """
-    Node 4: validate_solution
+    Node 4: validate_solution (Enhanced)
     Agent: "Validation Agent"
-    Compares student solution with the correct reasoning path.
+    Handles different types of user input: questions, solutions, statements, etc.
     """
     llm = initialize_llm()
     if not llm:
         state["error_message"] = "Không thể khởi tạo mô hình AI."
         return state
 
-    user_solution = state["user_solution_attempt"]
+    user_input = state["user_solution_attempt"]
+    if not user_input.strip():
+        state["error_message"] = "Nội dung đầu vào không được để trống."
+        return state
+
     reasoning_chain = state["reasoning_chain"]
     current_question = state["questions"][state["current_question_index"]]
-
-    validation_prompt = prompt_templates.get_validation_prompt_template(
-        reasoning_chain,
-        current_question,
-        user_solution
-    )
+    known_facts = state["known_facts"]
 
     try:
-        # Create and use the validation chain
-        validation_chain = create_validation_chain(llm)
-        validation_data = validation_chain.invoke({"validation_prompt": validation_prompt})
-
-        state["is_validated"] = validation_data.is_correct
-
-        # Store validation feedback
-        feedback = validation_data.feedback
-        score = validation_data.score
-
-        state["final_answer"] = (
-            f"**Kết quả đánh giá:**\n{feedback}\n\n**Điểm: {score}/100**"
+        # Step 1: Classify the type of user input
+        classification_prompt = prompt_templates.get_input_classification_prompt(
+            current_question, user_input, known_facts, format_facts_list
         )
 
-        if state["is_validated"]:
-            state["final_answer"] += "\n\n✅ Lời giải của bạn đã được chấp nhận!"
+        classification_chain = create_input_classification_chain(llm)
+        classification_result = classification_chain.invoke(
+            {"classification_prompt": classification_prompt}
+        )
 
-            # MERGE AI discoveries into known facts when solution is validated
-            ai_discoveries = state.get("ai_discovered_facts", [])
-            current_known = state["known_facts"]
+        input_type = classification_result.input_type
 
-            # Add AI discoveries to known facts (avoid duplicates)
-            for discovery in ai_discoveries:
-                if discovery and discovery not in current_known:
-                    current_known.append(discovery)
+        # Store the input type in state for API access
+        state["user_input_type"] = input_type
 
-            state["known_facts"] = current_known
-            # Clear AI discoveries since they're now part of known facts
-            state["ai_discovered_facts"] = []
+        # Step 2: Handle based on input type
+        if input_type == "question":
+            # Handle student questions
+            response_text = prompt_templates.get_question_answering_prompt(
+                current_question,
+                user_input,
+                known_facts,
+                reasoning_chain,
+                format_facts_list,
+            )
 
-            # Add additional illustration steps when solution is validated
-            additional_steps = validation_data.additional_illustration_steps
-            if additional_steps:
-                state["illustration_steps"].extend(additional_steps)
+            # Generate direct response for questions (not using validation chain)
+            response = llm.invoke(response_text)
+
+            state["is_validated"] = False  # Questions don't mark as validated
+            state["validation_score"] = 0  # Questions don't have a validation score
+            state["final_answer"] = (
+                f"**Câu trả lời cho câu hỏi của bạn:**\n\n{response.content}\n\n💡 Hãy thử áp dụng thông tin này để tiếp tục giải bài toán!"
+            )
+
+        elif input_type in ["complete_solution", "partial_solution", "statement"]:
+            # Handle solutions and statements using enhanced validation
+            validation_prompt = prompt_templates.get_validation_prompt_template(
+                reasoning_chain, current_question, user_input
+            )
+
+            validation_chain = create_validation_chain(llm)
+            validation_data = validation_chain.invoke(
+                {"validation_prompt": validation_prompt}
+            )
+
+            state["is_validated"] = validation_data.is_correct
+
+            feedback = validation_data.feedback
+            score = validation_data.score
+
+            # Store the score in state for API access
+            state["validation_score"] = score
+
+            state["final_answer"] = (
+                f"**Kết quả đánh giá:**\n{feedback}\n\n**Mức độ hoàn thiện: {score}%**"
+            )
+
+            if state["is_validated"]:
+                state["final_answer"] += "\n\n✅ Lời giải của bạn đã được chấp nhận!"
+
+                # MERGE AI discoveries into known facts when solution is validated
+                ai_discoveries = state.get("ai_discovered_facts", [])
+                current_known = state["known_facts"]
+
+                # Add AI discoveries to known facts (avoid duplicates)
+                for discovery in ai_discoveries:
+                    if discovery and discovery not in current_known:
+                        current_known.append(discovery)
+
+                state["known_facts"] = current_known
+                # Clear AI discoveries since they're now part of known facts
+                state["ai_discovered_facts"] = []
+
+                # Add additional illustration steps when solution is validated
+                additional_steps = validation_data.additional_illustration_steps
+                if additional_steps:
+                    state["illustration_steps"].extend(additional_steps)
+
+        else:  # unclear or other types
+            state["is_validated"] = False
+            state["validation_score"] = (
+                0  # Unclear inputs don't have a validation score
+            )
+            state["final_answer"] = (
+                "**Thông tin chưa rõ ràng**\n\n"
+                "Bạn có thể:\n"
+                "- Đặt câu hỏi cụ thể về khái niệm hoặc phương pháp\n"
+                "- Chia sẻ ý tưởng hoặc bước giải đã nghĩ ra\n"
+                "- Trình bày lời giải hoàn chỉnh để được đánh giá\n\n"
+                "💡 Hãy thử diễn đạt lại một cách rõ ràng hơn!"
+            )
 
     except Exception as e:
-        state["final_answer"] = f"Lỗi khi đánh giá lời giải: {str(e)}"
-        state["is_validated"] = False
+        error_message = f"Lỗi trong quá trình xử lý: {str(e)}"
+        state["error_message"] = error_message
+        print(f"❌ {error_message}")
 
     return state
 
@@ -270,11 +332,20 @@ def generate_solution(state: GraphState) -> GraphState:
     reasoning_chain = state["reasoning_chain"]
     current_question = state["questions"][state["current_question_index"]]
 
-    solution_prompt = prompt_templates.get_solution_prompt(current_question, reasoning_chain)
+    solution_prompt = prompt_templates.get_solution_prompt(
+        current_question, reasoning_chain
+    )
 
     try:
         response = llm.invoke(solution_prompt)
-        state["final_answer"] = response.content.strip()
+        # Handle response content properly based on type
+        if hasattr(response, "content"):
+            if isinstance(response.content, str):
+                state["final_answer"] = response.content.strip()
+            else:
+                state["final_answer"] = str(response.content)
+        else:
+            state["final_answer"] = str(response)
 
         # Display the generated solution immediately
         print("\n" + "=" * 60)

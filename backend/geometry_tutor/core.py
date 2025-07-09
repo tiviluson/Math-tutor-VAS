@@ -29,9 +29,11 @@ class GraphState(TypedDict):
 
     # --- User Interaction State ---
     user_solution_attempt: str  # The user's most recent solution submission
+    user_input_type: str  # Type of last user input: question, complete_solution, partial_solution, statement, unclear
     hint_level: int  # Counter for hints requested (0-3)
     generated_hints: List[str]  # The text of hints already provided to the user
     is_validated: bool  # Flag indicating if the user's solution was marked correct
+    validation_score: int  # Score from validation (0-100)
 
     # --- Output State ---
     final_answer: str  # The complete, formatted solution for the current question
@@ -57,9 +59,11 @@ def create_initial_state(problem: str) -> GraphState:
         ai_discovered_facts=[],
         reasoning_chain=[],
         user_solution_attempt="",
+        user_input_type="",
         hint_level=0,
         generated_hints=[],
         is_validated=False,
+        validation_score=0,
         final_answer="",
         error_message="",
         illustration_steps=[],

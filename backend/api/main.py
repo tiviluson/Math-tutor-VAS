@@ -37,12 +37,12 @@ class ProblemRequest(BaseModel):
     )
 
 
-class SolutionRequest(BaseModel):
+class ValidationRequest(BaseModel):
     session_id: str = Field(..., description="Session ID from problem creation")
     # action: str = Field(
     #     ..., description="Action to perform: hint, submit, solution, next"
     # )
-    solution_text: Optional[str] = Field(
+    user_input: Optional[str] = Field(
         None, description="Solution text for submit action"
     )
 
@@ -85,13 +85,15 @@ class HintResponse(BaseModel):
 
 
 class ValidationResponse(BaseModel):
-    success: bool
-    is_correct: bool
-    feedback: str
-    score: int
-    moved_to_next: bool = False
-    current_question_index: Optional[int] = None
-    session_complete: bool = False
+    success: bool = Field(..., description="Kết quả xử lý có thành công không")
+    is_correct: bool = Field(..., description="Nội dung có đúng không (false cho câu hỏi)")
+    feedback: str = Field(..., description="Phản hồi chi tiết cho học sinh")
+    score: int = Field(..., description="Điểm số từ 0-100")
+    moved_to_next: bool = Field(default=False, description="Đã chuyển sang câu tiếp theo chưa")
+    current_question_index: Optional[int] = Field(None, description="Chỉ số câu hỏi hiện tại")
+    session_complete: bool = Field(default=False, description="Phiên làm việc đã hoàn thành chưa")
+    input_type: Optional[str] = Field(None, description="Loại nội dung: question, complete_solution, partial_solution, statement, unclear")
+    message_type: Optional[str] = Field(None, description="Loại phản hồi: answer, validation_success, validation_feedback")
 
 
 class SolutionResponse(BaseModel):
@@ -501,9 +503,9 @@ async def request_hint(request: SessionRequest) -> HintResponse:
 
 
 @app.post("/validate", response_model=ValidationResponse)
-async def validate_solution(request: SolutionRequest) -> ValidationResponse:
+async def validate_solution(request: ValidationRequest) -> ValidationResponse:
     """Validate a student's solution for the current question and automatically move to next if correct."""
-    if not request.solution_text:
+    if not request.user_input:
         raise HTTPException(status_code=400, detail="Solution text is required")
 
     tutor = session_manager.get_session(request.session_id)
@@ -519,7 +521,7 @@ async def validate_solution(request: SolutionRequest) -> ValidationResponse:
             raise HTTPException(status_code=400, detail="Session already complete")
 
         # Validate the solution using the API tutor
-        validation_result = tutor.validate_user_solution(request.solution_text)
+        validation_result = tutor.validate_user_solution(request.user_input)
 
         if not validation_result["success"]:
             raise HTTPException(status_code=400, detail=validation_result["error"])
@@ -548,6 +550,8 @@ async def validate_solution(request: SolutionRequest) -> ValidationResponse:
             moved_to_next=moved_to_next,
             current_question_index=current_question_index,
             session_complete=session_complete,
+            input_type=validation_result.get("input_type", "unknown"),
+            message_type=validation_result.get("message_type", "validation"),
         )
 
     except Exception as e:

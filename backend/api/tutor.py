@@ -150,17 +150,17 @@ class ApiGeometryTutor:
         except Exception as e:
             return {"success": False, "error": f"Error generating hint: {str(e)}"}
 
-    def validate_user_solution(self, solution_text: str) -> Dict[str, Any]:
+    def validate_user_solution(self, user_input: str) -> Dict[str, Any]:
         """Validate a user's solution for the current question."""
         if not self.current_state:
             return {"success": False, "error": "No active session"}
 
-        if not solution_text or not solution_text.strip():
+        if not user_input or not user_input.strip():
             return {"success": False, "error": "Solution text cannot be empty"}
 
         try:
             # Set user solution in state
-            self.current_state["user_solution_attempt"] = solution_text
+            self.current_state["user_solution_attempt"] = user_input
 
             # Validate using the agent
             validated_state = validate_solution(self.current_state)
@@ -172,16 +172,35 @@ class ApiGeometryTutor:
             # Parse the final answer to extract feedback and score
             final_answer = validated_state.get("final_answer", "")
             is_correct = validated_state.get("is_validated", False)
+            input_type = validated_state.get("user_input_type", "unknown")
+
+            # Get the actual validation score from the state
+            # For questions, use a default score since they don't get validated
+            if input_type == "question":
+                score = 0  # Questions don't have a score
+            else:
+                score = validated_state.get(
+                    "validation_score", 85 if is_correct else 45
+                )
 
             # Simple parsing of the feedback (in real implementation, this would be more structured)
             feedback = final_answer
-            score = 85 if is_correct else 45  # Default scores
+
+            # Determine message type based on input type and validation result
+            if input_type == "question":
+                message_type = "answer"
+            elif is_correct:
+                message_type = "validation_success"
+            else:
+                message_type = "validation_feedback"
 
             return {
                 "success": True,
                 "is_correct": is_correct,
                 "feedback": feedback,
                 "score": score,
+                "input_type": input_type,
+                "message_type": message_type,
             }
 
         except Exception as e:
