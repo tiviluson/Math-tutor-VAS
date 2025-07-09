@@ -37,6 +37,10 @@ class GraphState(TypedDict):
     final_answer: str  # The complete, formatted solution for the current question
     error_message: str  # For communicating errors (e.g., parsing failure)
 
+    # --- Visualization State ---
+    illustration_steps: List[str]  # Steps to draw geometric illustrations
+    # Example: ["Vẽ đường tròn tâm O, bán kính R", "Lấy điểm A trên đường thẳng qua O"]
+
     # --- Control Flow ---
     user_action: str  # Current user action: 'hint', 'validate', 'solve', 'start'
     session_complete: bool  # Flag indicating if all questions are complete
@@ -58,6 +62,7 @@ def create_initial_state(problem: str) -> GraphState:
         is_validated=False,
         final_answer="",
         error_message="",
+        illustration_steps=[],
         user_action="start",
         session_complete=False,
     )

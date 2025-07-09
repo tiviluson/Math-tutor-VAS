@@ -2,11 +2,16 @@
 LangGraph node implementations (AI Agents) for the Geometry Tutor system.
 """
 
-import json
 from typing import List, Dict
 
 from .core import GraphState, format_facts_list
-from .llm_utils import initialize_llm, safe_json_parse
+from .llm_utils import (
+    initialize_llm, 
+    create_parsing_chain, 
+    create_reasoning_chain, 
+    create_validation_chain,
+)
+from .prompts import prompt_templates, hint_builder
 
 
 def parse_problem(state: GraphState) -> GraphState:
@@ -22,46 +27,24 @@ def parse_problem(state: GraphState) -> GraphState:
         )
         return state
 
-    parsing_prompt = f"""
-Bạn là một chuyên gia hình học. Hãy đọc bài toán sau và trích xuất tất cả thông tin hình học, 
-các sự kiện đã cho, và các câu hỏi riêng biệt thành định dạng JSON.
-
-Các câu hỏi phải được sắp xếp theo thứ tự tuần tự đúng.
-
-Bài toán: {state['original_problem']}
-
-Vui lòng trả về JSON với định dạng sau:
-{{
-    "points": ["A", "B", "C", ...],
-    "lines": ["AB", "BC", ...],
-    "shapes": ["triangle ABC", "circle O", ...],
-    "given_facts": ["AB = 5", "góc ABC = 90°", ...],
-    "questions": ["Chứng minh tam giác ABC vuông", "Tính diện tích tam giác", ...]
-}}
-"""
-
     try:
-        response = llm.invoke(parsing_prompt)
-        parsed_data = safe_json_parse(
-            response.content,
-            {
-                "points": [],
-                "lines": [],
-                "shapes": [],
-                "given_facts": [],
-                "questions": [],
-            },
-        )
+        # Create and use the parsing chain
+        parsing_chain = create_parsing_chain(llm)
+        parsed_data = parsing_chain.invoke({"problem": state['original_problem']})
 
         state["parsed_elements"] = {
-            "points": parsed_data.get("points", []),
-            "lines": parsed_data.get("lines", []),
-            "shapes": parsed_data.get("shapes", []),
-            "facts": parsed_data.get("given_facts", []),
+            "points": parsed_data.points,
+            "lines": parsed_data.lines,
+            "shapes": parsed_data.shapes,
+            "facts": parsed_data.given_facts,
         }
 
-        state["questions"] = parsed_data.get("questions", [])
-        state["known_facts"] = parsed_data.get("given_facts", []).copy()
+        state["questions"] = parsed_data.questions
+        state["known_facts"] = parsed_data.given_facts.copy()
+
+        # Add illustration steps from parsing
+        illustration_steps = parsed_data.illustration_steps
+        state["illustration_steps"].extend(illustration_steps)
 
         if not state["questions"]:
             state["error_message"] = (
@@ -105,51 +88,33 @@ def reason_and_solve(state: GraphState) -> GraphState:
         # Combine base facts with current AI discoveries for reasoning
         all_available_facts = base_facts + ai_discoveries
 
-        solver_prompt = f"""
-Bạn là một chuyên gia giải toán hình học. Mục tiêu của bạn là chứng minh/giải quyết: {current_question}
-
-Bạn đã biết các sự kiện sau:
-{format_facts_list(all_available_facts)}
-
-Bước lập luận đã thực hiện:
-{json.dumps(reasoning_chain, ensure_ascii=False, indent=2) if reasoning_chain else "Chưa có bước nào"}
-
-Hãy xác định bước logic tiếp theo để đạt được mục tiêu. Trả về JSON với định dạng:
-{{
-    "thought": "Suy nghĩ logic cho bước này, bao gồm lập luận chi tiết",
-    "conclusion": "Kết luận cụ thể từ bước này. Chỉ bao gồm kết luận cuối cùng, không cần lập luận",
-    "is_goal_reached": true/false
-}}
-
-Nếu kết luận đã đạt được mục tiêu (trả lời được câu hỏi), hãy đặt is_goal_reached = true.
-"""
+        solver_prompt = prompt_templates.get_solver_prompt_template(
+            current_question, 
+            all_available_facts, 
+            reasoning_chain, 
+            format_facts_list
+        )
 
         try:
-            response = llm.invoke(solver_prompt)
-            step_data = safe_json_parse(
-                response.content,
-                {
-                    "thought": "Không thể phân tích bước này",
-                    "conclusion": "",
-                    "is_goal_reached": False,
-                },
-            )
+            # Create and use the reasoning chain
+            reasoning_chain_processor = create_reasoning_chain(llm)
+            step_data = reasoning_chain_processor.invoke({"solver_prompt": solver_prompt})
 
             reasoning_chain.append(
                 {
-                    "thought": step_data.get("thought", ""),
-                    "conclusion": step_data.get("conclusion", ""),
+                    "thought": step_data.thought,
+                    "conclusion": step_data.conclusion,
                 }
             )
 
             # Add new conclusion to AI discoveries (separate from user's known facts)
-            conclusion = step_data.get("conclusion", "").strip()
+            conclusion = step_data.conclusion.strip()
             if conclusion and conclusion not in all_available_facts:
                 ai_discoveries.append(conclusion)
 
             # Check if goal is reached
             if (
-                step_data.get("is_goal_reached", False)
+                step_data.is_goal_reached
                 or iteration >= max_iterations - 1
             ):
                 break
@@ -198,51 +163,14 @@ def generate_hint(state: GraphState) -> GraphState:
     state["hint_level"] = hint_level + 1
     new_hint_level = state["hint_level"]
 
-    if new_hint_level == 1:
-        # Hint 1: Conceptual - General strategy
-        hint_prompt = f"""
-Bạn là một giáo viên hình học. Học sinh đang giải câu hỏi: {current_question}
-
-Các sự kiện học sinh đã biết:
-{format_facts_list(state["known_facts"])}
-
-Chuỗi lập luận đúng là:
-{json.dumps(reasoning_chain, ensure_ascii=False, indent=2)}
-
-Hãy đưa ra gợi ý khái niệm tổng quát (không tiết lộ chi tiết cụ thể) về chiến lược giải quyết. 
-Đặt câu hỏi hướng dẫn để học sinh tự suy nghĩ.
-"""
-
-    elif new_hint_level == 2:
-        # Hint 2: Contextual - Point to specific facts
-        # Use only user's known facts for hints, not AI discoveries
-        hint_prompt = f"""
-Bạn là một giáo viên hình học. Học sinh đang giải câu hỏi: {current_question}
-
-Các sự kiện học sinh đã biết:
-{format_facts_list(state["known_facts"])}
-
-Chuỗi lập luận đúng:
-{json.dumps(reasoning_chain, ensure_ascii=False, indent=2)}
-
-Hãy chỉ ra những sự kiện cụ thể từ danh sách đã biết mà học sinh cần chú ý để thực hiện bước tiếp theo.
-Không tiết lộ bước lập luận, chỉ hướng dẫn tập trung vào thông tin nào.
-"""
-
-    else:  # hint_level == 3
-        # Hint 3: Direct - Next step suggestion
-        hint_prompt = f"""
-Bạn là một giáo viên hình học. Học sinh đang giải câu hỏi: {current_question}
-
-Các sự kiện học sinh đã biết:
-{format_facts_list(state["known_facts"])}
-
-Chuỗi lập luận đúng:
-{json.dumps(reasoning_chain, ensure_ascii=False, indent=2)}
-
-Hãy gợi ý trực tiếp bước tiếp theo mà học sinh nên thực hiện, nhưng vẫn để học sinh tự hoàn thành.
-Đưa ra một gợi ý cụ thể dưới dạng đề xuất.
-"""
+    # Build hint prompt using the prompt builder
+    hint_prompt = hint_builder.build_hint_prompt(
+        new_hint_level,
+        current_question,
+        state["known_facts"],
+        reasoning_chain,
+        format_facts_list
+    )
 
     try:
         response = llm.invoke(hint_prompt)
@@ -279,43 +207,22 @@ def validate_solution(state: GraphState) -> GraphState:
     reasoning_chain = state["reasoning_chain"]
     current_question = state["questions"][state["current_question_index"]]
 
-    validation_prompt = f"""
-Bạn là một trợ giảng dạy hình học. Một chuỗi lập luận đúng là:
-
-{json.dumps(reasoning_chain, ensure_ascii=False, indent=2)}
-
-Học sinh đã nộp lời giải sau cho câu hỏi "{current_question}":
-
-{user_solution}
-
-Hãy so sánh lập luận của học sinh với đường lối giải đúng. Lập luận của học sinh có hợp lý không?
-
-Nếu đúng, hãy khen ngợi và xác nhận. Nếu sai, hãy nhẹ nhàng giải thích điểm sai hoặc những gì học sinh còn thiếu.
-
-Trả về JSON với định dạng:
-{{
-    "is_correct": true/false,
-    "feedback": "Phản hồi chi tiết cho học sinh",
-    "score": 0-100
-}}
-"""
+    validation_prompt = prompt_templates.get_validation_prompt_template(
+        reasoning_chain,
+        current_question,
+        user_solution
+    )
 
     try:
-        response = llm.invoke(validation_prompt)
-        validation_data = safe_json_parse(
-            response.content,
-            {
-                "is_correct": False,
-                "feedback": "Không thể đánh giá lời giải",
-                "score": 0,
-            },
-        )
+        # Create and use the validation chain
+        validation_chain = create_validation_chain(llm)
+        validation_data = validation_chain.invoke({"validation_prompt": validation_prompt})
 
-        state["is_validated"] = validation_data.get("is_correct", False)
+        state["is_validated"] = validation_data.is_correct
 
         # Store validation feedback
-        feedback = validation_data.get("feedback", "Không có phản hồi")
-        score = validation_data.get("score", 0)
+        feedback = validation_data.feedback
+        score = validation_data.score
 
         state["final_answer"] = (
             f"**Kết quả đánh giá:**\n{feedback}\n\n**Điểm: {score}/100**"
@@ -336,6 +243,11 @@ Trả về JSON với định dạng:
             state["known_facts"] = current_known
             # Clear AI discoveries since they're now part of known facts
             state["ai_discovered_facts"] = []
+
+            # Add additional illustration steps when solution is validated
+            additional_steps = validation_data.additional_illustration_steps
+            if additional_steps:
+                state["illustration_steps"].extend(additional_steps)
 
     except Exception as e:
         state["final_answer"] = f"Lỗi khi đánh giá lời giải: {str(e)}"
@@ -358,22 +270,7 @@ def generate_solution(state: GraphState) -> GraphState:
     reasoning_chain = state["reasoning_chain"]
     current_question = state["questions"][state["current_question_index"]]
 
-    solution_prompt = f"""
-Bạn là một giáo viên hình học. Hãy viết một lời giải rõ ràng, từng bước dựa trên chuỗi logic sau.
-Giải thích mỗi bước một cách rõ ràng bằng tiếng Việt.
-
-Câu hỏi: {current_question}
-
-Chuỗi lập luận:
-{json.dumps(reasoning_chain, ensure_ascii=False, indent=2)}
-
-Hãy viết lời giải hoàn chỉnh với định dạng:
-- Đầu tiên nêu rõ điều cần chứng minh/tính toán
-- Từng bước giải thích chi tiết
-- Kết luận cuối cùng
-
-Sử dụng định dạng Markdown để làm đẹp lời giải.
-"""
+    solution_prompt = prompt_templates.get_solution_prompt(current_question, reasoning_chain)
 
     try:
         response = llm.invoke(solution_prompt)

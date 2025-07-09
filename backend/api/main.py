@@ -1,10 +1,11 @@
 """
 FastAPI-based REST API server for the AI Geometry Tutor.
+Supports both text-based geometry problems and image uploads for problem extraction.
 """
 
-import re
 import uuid
 import time
+import base64
 from typing import Dict, Any, Optional, List, Union
 from datetime import datetime, timedelta
 
@@ -27,7 +28,13 @@ from .tutor import ApiGeometryTutor
 # Pydantic models for API requests and responses
 class ProblemRequest(BaseModel):
     problem_text: str = Field(
-        ..., description="Vietnamese geometry problem text", min_length=10
+        default="", description="Vietnamese geometry problem text (required if is_img=false)"
+    )
+    is_img: bool = Field(
+        default=False, description="Whether the request includes an image instead of text"
+    )
+    img: Optional[str] = Field(
+        default=None, description="Base64 encoded image of the geometry problem (required if is_img=true)"
     )
 
 
@@ -56,6 +63,10 @@ class SessionStatus(BaseModel):
     is_validated: bool
     session_complete: bool
     known_facts: List[str]
+    original_problem: str
+    previously_solved_questions: List[Dict[str, Any]]
+    current_question_solution: Optional[str] = None
+    illustration_steps: List[str]
     created_at: datetime
     last_activity: datetime
 
@@ -90,6 +101,128 @@ class SolutionResponse(BaseModel):
     moved_to_next: bool = False
     current_question_index: Optional[int] = None
     session_complete: bool = False
+
+
+# Helper function to process image and extract problem text
+async def process_image_to_text(image_b64: str) -> str:
+    """
+    Process base64 encoded image to extract geometry problem text using LLM.
+    
+    Args:
+        image_b64: Base64 encoded image (can include data URL prefix or just base64)
+        
+    Returns:
+        Extracted problem text from image
+    """
+    try:
+        # Validate base64 input
+        if not image_b64 or not isinstance(image_b64, str):
+            raise ValueError("Invalid base64 image data")
+        
+        # Clean up base64 string - remove data URL prefix if present
+        if image_b64.startswith('data:image/'):
+            # Extract just the base64 part after the comma
+            if ',' in image_b64:
+                image_b64 = image_b64.split(',', 1)[1]
+        
+        # Basic validation - try to decode base64
+        try:
+            image_data = base64.b64decode(image_b64)
+            if len(image_data) == 0:
+                raise ValueError("Empty image data")
+        except Exception as decode_error:
+            raise ValueError(f"Invalid base64 image: {decode_error}")
+        
+        # Initialize LLM for vision processing
+        from geometry_tutor.llm_utils import initialize_llm
+        llm = initialize_llm()
+        
+        if not llm:
+            raise ValueError("Failed to initialize LLM for image processing")
+        
+        # Create the vision prompt
+        prompt = """Bạn là một chuyên gia toán học, hãy phân tích hình ảnh bài toán hình học này và trích xuất thông tin.
+
+Hãy thực hiện các nhiệm vụ sau:
+1. Trích xuất toàn bộ văn bản của bài toán (nếu có) trong hình ảnh
+2. Mô tả chi tiết hình vẽ/minh họa trong bài toán (nếu có)
+3. Xác định xem có hình vẽ/minh họa trong ảnh hay không
+
+Trả về kết quả theo định dạng JSON:
+{
+    "problem_text": "Văn bản bài toán đầy đủ đã được trích xuất từ hình ảnh",
+    "illustration_description": "Mô tả chi tiết hình vẽ nếu có, ngược lại trả về chuỗi rỗng",
+    "has_text_in_image": true/false,
+    "has_illustration_in_image": true/false
+}
+
+Yêu cầu:
+- Trích xuất chính xác toàn bộ văn bản trong hình ảnh
+- Mô tả chi tiết các yếu tố hình học (điểm, đường, góc, hình dạng, v.v...) nếu có hình vẽ
+- Đảm bảo văn bản tiếng Việt chính xác
+- Nếu không có văn bản trong hình ảnh, trả về chuỗi rỗng cho problem_text
+- Nếu không có hình vẽ minh họa, trả về chuỗi rỗng cho illustration_description và has_illustration_in_image = false
+- Đặt has_illustration_in_image = true nếu có bất kỳ hình vẽ, sơ đồ, biểu đồ hình học nào trong ảnh"""
+
+        # Prepare the message with image
+        from langchain_core.messages import HumanMessage
+        
+        message = HumanMessage(
+            content=[
+                {"type": "text", "text": prompt},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}
+                }
+            ]
+        )
+        
+        # Make the LLM call
+        try:
+            response = llm.invoke([message])
+            response_text = response.content
+            
+            # Ensure response_text is a string
+            if isinstance(response_text, list):
+                response_text = str(response_text)
+            elif not isinstance(response_text, str):
+                response_text = str(response_text)
+            
+            # Try to parse JSON response
+            from geometry_tutor.llm_utils import safe_json_parse
+            result = safe_json_parse(response_text)
+            
+            if result and "problem_text" in result:
+                # Use the extracted text from LLM
+                final_text = result["problem_text"]
+
+                # Add illustration description only if there's actually an illustration in the image
+                if result.get("has_illustration_in_image", False) and result.get(
+                    "illustration_description"
+                ):
+                    final_text += (
+                        f"\n\n[Mô tả hình vẽ: {result['illustration_description']}]"
+                    )
+
+                if final_text.strip():
+                    return final_text
+                else:
+                    return "Không thể trích xuất thông tin từ hình ảnh. Vui lòng cung cấp văn bản bài toán."
+            
+            # If JSON parsing fails, try to extract text directly from response
+            elif response_text.strip():
+                return response_text
+            
+            # If LLM response is empty
+            else:
+                return "Không thể trích xuất thông tin từ hình ảnh. Vui lòng cung cấp văn bản bài toán."
+                    
+        except Exception as llm_error:
+            print(f"LLM processing failed: {llm_error}")
+            raise ValueError(f"Failed to process image with LLM: {llm_error}")
+        
+    except Exception as e:
+        raise ValueError(f"Failed to process image: {str(e)}")
 
 
 # In-memory session storage (in production, use Redis or database)
@@ -226,10 +359,37 @@ async def create_session(
 ) -> Dict[str, Union[str, int]]:
     """
     Create a new tutoring session with a geometry problem.
+    
+    - If is_img=true: Processes the base64 image to extract problem text
+    - If is_img=false: Uses the provided problem_text directly
+    
+    Only one of problem_text or img should be provided based on the is_img flag.
 
     Returns session_id for subsequent API calls.
     """
     try:
+        # Process the problem text based on is_img flag
+        if request.is_img and request.img is not None:
+            # Process image to extract problem text
+            try:
+                final_problem_text = await process_image_to_text(request.img)
+            except Exception as img_error:
+                print(f"Image processing failed: {img_error}")
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Failed to process image: {str(img_error)}"
+                )
+        else:
+            # Use provided problem text
+            final_problem_text = request.problem_text
+
+        # Validate that we have some problem text
+        if not final_problem_text.strip():
+            raise HTTPException(
+                status_code=400, 
+                detail="Failed to extract problem text from image" if request.img else "Problem text is required" 
+            )
+
         # Create tutor instance
         tutor = ApiGeometryTutor()
 
@@ -237,7 +397,7 @@ async def create_session(
         session_id = session_manager.create_session(tutor)
 
         # Start the problem (this will parse and set up the session)
-        result = tutor.start_problem(request.problem_text)
+        result = tutor.start_problem(final_problem_text)
 
         if not result["success"]:
             session_manager.cleanup_session(session_id)
@@ -259,15 +419,15 @@ async def create_session(
 
 
 @app.get("/status", response_model=SessionStatus)
-async def get_session_status(session_id: str) -> SessionStatus:
+async def get_session_status(request: SessionRequest) -> SessionStatus:
     """Get current status of a tutoring session."""
-    tutor = session_manager.get_session(session_id)
+    tutor = session_manager.get_session(request.session_id)
     if not tutor:
         raise HTTPException(status_code=404, detail="Session not found or expired")
 
     try:
-        status = tutor.get_status()
-        session_info = session_manager.get_session_info(session_id)
+        status = tutor.get_enhanced_status()
+        session_info = session_manager.get_session_info(request.session_id)
 
         if not status["success"]:
             raise HTTPException(status_code=400, detail=status["error"])
@@ -276,9 +436,10 @@ async def get_session_status(session_id: str) -> SessionStatus:
             raise HTTPException(status_code=404, detail="Session info not found")
 
         return SessionStatus(
-            session_id=session_id,
+            session_id=request.session_id,
             success=status["success"],
-            current_question_index=status["current_question_index"],
+            current_question_index=status["current_question_index"]
+            + 1,  # Convert to 1-based for API
             total_questions=status["total_questions"],
             current_question=status["current_question"],
             hint_level=status["hint_level"],
@@ -286,6 +447,10 @@ async def get_session_status(session_id: str) -> SessionStatus:
             is_validated=status["is_validated"],
             session_complete=status["session_complete"],
             known_facts=status["known_facts"],
+            original_problem=status["original_problem"],
+            previously_solved_questions=status["previously_solved_questions"],
+            current_question_solution=status["current_question_solution"],
+            illustration_steps=status["illustration_steps"],
             created_at=session_info["created_at"],
             last_activity=session_info["last_activity"],
         )
