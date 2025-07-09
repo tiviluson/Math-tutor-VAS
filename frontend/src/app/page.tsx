@@ -1,21 +1,16 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
+import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
   Calculator, 
   Upload, 
   MessageCircle, 
-  Lightbulb, 
   ListChecks, 
-  PlayCircle, 
-  CheckCircle, 
   Eye,
   Send,
   ZoomIn,
@@ -23,24 +18,65 @@ import {
   RotateCcw,
   BookOpen
 } from 'lucide-react';
+import { 
+  useTutorSession, 
+  useChatMessages, 
+  useFacts, 
+  useVisualization,
+  useAutoScroll 
+} from '@/lib/hooks';
+import { 
+  LoadingSpinner, 
+  ErrorDisplay, 
+  LoadingOverlay, 
+  ChatLoading, 
+  EmptyState 
+} from '@/components/ui/loading';
 
 type AppMode = 'ask' | 'workspace';
 
 export default function Home() {
   const [mode, setMode] = useState<AppMode>('ask');
   const [question, setQuestion] = useState('');
-  const [chatMessages, setChatMessages] = useState<Array<{text: string, isUser: boolean}>>([]);
   const [chatInput, setChatInput] = useState('');
-  const [hints, setHints] = useState<string[]>([]);
-  const [facts, setFacts] = useState<string[]>([]);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    }
-  }, [chatMessages]);
+  // Custom hooks for API integration
+  const { 
+    sessionId, 
+    isLoading: sessionLoading, 
+    error: sessionError, 
+    createSession, 
+    clearError: clearSessionError 
+  } = useTutorSession();
+
+  const { 
+    messages, 
+    isLoading: chatLoading, 
+    error: chatError, 
+    sendMessage, 
+    addInitialMessage, 
+    clearError: clearChatError 
+  } = useChatMessages(sessionId);
+
+  const { 
+    facts, 
+    isLoading: factsLoading, 
+    error: factsError, 
+    getFacts,
+    clearError: clearFactsError 
+  } = useFacts(sessionId);
+
+  const { 
+    plotData, 
+    plotDescription, 
+    isLoading: visualLoading, 
+    error: visualError, 
+    getVisualization,
+    clearError: clearVisualError 
+  } = useVisualization(sessionId);
+
+  const chatContainerRef = useAutoScroll(messages);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -57,30 +93,30 @@ export default function Home() {
     }
   };
 
-  const handleAskTutor = () => {
+  const handleAskTutor = async () => {
     if (!question.trim()) return;
-    setMode('workspace');
-    setChatMessages([
-      { text: question, isUser: true },
-      { text: "Tôi sẽ giúp bạn giải quyết bài toán này từng bước một. Hãy để tôi phân tích câu hỏi của bạn...", isUser: false }
-    ]);
+    
+    try {
+      const response = await createSession(question);
+      if (response.success) {
+        setMode('workspace');
+        addInitialMessage(question);
+      }
+    } catch (error) {
+      console.error('Failed to create session:', error);
+    }
   };
 
-  const handleSendChat = () => {
+  const handleSendChat = async () => {
     if (!chatInput.trim()) return;
-    setChatMessages(prev => [...prev, 
-      { text: chatInput, isUser: true },
-      { text: "Để tôi suy nghĩ về vấn đề đó...", isUser: false }
-    ]);
+    
+    const messageText = chatInput;
     setChatInput('');
+    await sendMessage(messageText);
   };
 
-  const handleMoreHints = () => {
-    setHints(prev => [...prev, `Gợi ý ${prev.length + 1}: Hãy xem xét các tính chất hình học liên quan.`]);
-  };
-
-  const handleGetFacts = () => {
-    setFacts(prev => [...prev, `Kiến thức ${prev.length + 1}: Mối quan hệ toán học quan trọng đã được xác định.`]);
+  const handleGetFacts = async () => {
+    await getFacts();
   };
 
   if (mode === 'ask') {
@@ -144,14 +180,27 @@ export default function Home() {
           <div className="flex justify-end mt-4">
             <Button 
               onClick={handleAskTutor}
-              disabled={!question.trim()}
+              disabled={!question.trim() || sessionLoading}
               size="lg"
               className="px-8 py-3 text-lg flex items-center gap-3"
             >
-              <MessageCircle className="h-5 w-5" />
-              Hỏi Tutor
+              {sessionLoading ? (
+                <LoadingSpinner size="sm" />
+              ) : (
+                <MessageCircle className="h-5 w-5" />
+              )}
+              {sessionLoading ? 'Đang phân tích...' : 'Hỏi Tutor'}
             </Button>
           </div>
+
+          {sessionError && (
+            <div className="mt-4">
+              <ErrorDisplay 
+                error={sessionError} 
+                onRetry={clearSessionError} 
+              />
+            </div>
+          )}
         </div>
       </div>
     );
@@ -170,66 +219,95 @@ export default function Home() {
 
       <div className="flex-1 p-4 overflow-hidden">
         <div className="grid grid-cols-10 gap-4 h-full">
-          <div className="col-span-6 flex flex-col h-full">
+          <div className="col-span-6 flex flex-col">
             <Card className="flex-shrink-0 mb-4">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">Câu hỏi</CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-0">
-                <div className="text-sm bg-gray-50 rounded p-3 h-20 overflow-y-auto mb-4">
+                <div className="text-sm bg-gray-50 rounded p-3 h-12 overflow-y-auto mb-4">
                   {question}
                 </div>
-                <div className="flex justify-between gap-4 flex-wrap">
-                  <Button variant="outline" size="sm" onClick={handleGetFacts} className="mb-2 flex-1 mx-1">
-                    <ListChecks className="h-4 w-4 mr-2" />
+                <div className="flex justify-center">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleGetFacts}
+                    disabled={factsLoading || !sessionId}
+                  >
+                    {factsLoading ? (
+                      <LoadingSpinner size="sm" className="mr-2" />
+                    ) : (
+                      <ListChecks className="h-4 w-4 mr-2" />
+                    )}
                     Get facts
                   </Button>
-                  <Button variant="outline" size="sm" className="mb-2 flex-1 mx-1">
-                    <PlayCircle className="h-4 w-4 mr-2" />
-                    Get steps
-                  </Button>
-                  <Button variant="outline" size="sm" className="mb-2 flex-1 mx-1">
-                    <Eye className="h-4 w-4 mr-2" />
-                    Visualize
-                  </Button>
                 </div>
+                {factsError && (
+                  <div className="mt-2">
+                    <ErrorDisplay 
+                      error={factsError} 
+                      onRetry={clearFactsError} 
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
 
-            <Card className="flex-1 flex flex-col">
+            <Card className="h-[66vh] flex flex-col">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">Trò chuyện với AI Tutor</CardTitle>
               </CardHeader>
               <CardContent className="h-full p-4 pt-0 flex flex-col">
-                <div className="flex-1 overflow-y-auto space-y-3 mb-4 pr-2" ref={chatContainerRef}>
-                  {chatMessages.map((message, index) => (
+                {/* Chat container với chiều cao linh hoạt */}
+                <div className="flex-1 overflow-y-auto space-y-3 mb-1 pr-2 border border-gray-200 rounded-lg p-3 bg-gray-50 scrollbar-custom" ref={chatContainerRef}>
+                  {messages.map((message, index) => (
                     <div key={index} className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-xs rounded-lg p-3 text-sm ${
                         message.isUser 
                           ? 'bg-blue-500 text-white' 
-                          : 'bg-gray-100 text-gray-900'
+                          : 'bg-white text-gray-900 shadow-sm border'
                       }`}>
                         {message.text}
                       </div>
                     </div>
                   ))}
-                  {chatMessages.length === 0 && (
+                  {chatLoading && <ChatLoading />}
+                  {messages.length === 0 && !sessionLoading && (
                     <div className="flex items-center justify-center h-full">
                       <p className="text-gray-400 text-sm">Hãy bắt đầu cuộc hành trình học tập của bạn</p>
                     </div>
                   )}
                 </div>
 
-                <div className="flex gap-2 flex-shrink-0">
+                {chatError && (
+                  <div className="my-1">
+                    <ErrorDisplay 
+                      error={chatError} 
+                      onRetry={clearChatError} 
+                    />
+                  </div>
+                )}
+
+                <div className="flex gap-2 flex-shrink-0 mt-4">
                   <Input
                     placeholder="Hỏi tôi bất cứ điều gì..."
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSendChat()}
+                    onKeyPress={(e) => e.key === 'Enter' && !chatLoading && handleSendChat()}
+                    disabled={chatLoading || !sessionId}
                     className="flex-1"
                   />
-                  <Button onClick={handleSendChat} size="sm">
-                    <Send className="h-4 w-4" />
+                  <Button 
+                    onClick={handleSendChat} 
+                    size="sm"
+                    disabled={chatLoading || !sessionId || !chatInput.trim()}
+                  >
+                    {chatLoading ? (
+                      <LoadingSpinner size="sm" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
                   </Button>
                 </div>
               </CardContent>
@@ -242,17 +320,31 @@ export default function Home() {
                 <CardTitle className="text-sm">Kiến thức</CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-0 flex-1">
-                <div className="space-y-2 h-full overflow-y-auto">
-                  {facts.length === 0 ? (
-                    <p className="text-xs text-gray-500 text-center mt-8">Chưa có kiến thức</p>
-                  ) : (
-                    facts.map((fact, index) => (
-                      <div key={index} className="text-xs bg-blue-50 p-2 rounded">
-                        {fact}
-                      </div>
-                    ))
-                  )}
-                </div>
+                <LoadingOverlay isLoading={factsLoading} message="Đang phân tích kiến thức...">
+                  <div className="space-y-2 h-full overflow-y-auto">
+                    {facts.length === 0 ? (
+                      <EmptyState
+                        title="Chưa có kiến thức"
+                        description="Nhấn 'Get facts' để phân tích bài toán"
+                        className="mt-8"
+                      />
+                    ) : (
+                      facts.map((fact, index) => (
+                        <div key={index} className="text-xs bg-blue-50 p-2 rounded">
+                          {fact}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </LoadingOverlay>
+                {factsError && (
+                  <div className="mt-2">
+                    <ErrorDisplay 
+                      error={factsError} 
+                      onRetry={clearFactsError} 
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -261,22 +353,62 @@ export default function Home() {
                 <CardTitle className="text-sm">Hình minh họa</CardTitle>
               </CardHeader>
               <CardContent className="flex-1 p-4 pt-0 flex flex-col">
-                <div className="flex-1 bg-white border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center relative">
-                  <div className="text-center text-gray-500">
-                    <Eye className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">Hình minh họa sẽ xuất hiện tại đây</p>
-                    <p className="text-xs text-gray-400 mt-1">Canvas JSXGraph tương tác</p>
+                <LoadingOverlay isLoading={visualLoading} message="Đang tạo hình minh họa...">
+                  <div className="flex-1 bg-white border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center relative">
+                    {plotData ? (
+                      <div className="flex flex-col items-center w-full h-full">
+                        <Image 
+                          src={`data:image/png;base64,${plotData}`} 
+                          alt={plotDescription || "Geometric visualization"}
+                          width={400}
+                          height={300}
+                          className="max-w-full max-h-full object-contain"
+                        />
+                        {plotDescription && (
+                          <p className="text-xs text-gray-600 mt-2 text-center px-2">
+                            {plotDescription}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <EmptyState
+                        icon={<Eye className="h-12 w-12" />}
+                        title="Hình minh họa sẽ xuất hiện tại đây"
+                        description="Canvas JSXGraph tương tác"
+                      />
+                    )}
                   </div>
-                </div>
+                </LoadingOverlay>
+
+                {visualError && (
+                  <div className="mt-2">
+                    <ErrorDisplay 
+                      error={visualError} 
+                      onRetry={clearVisualError} 
+                    />
+                  </div>
+                )}
 
                 <div className="flex justify-center gap-2 mt-4">
-                  <Button variant="outline" size="sm">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={getVisualization}
+                    disabled={visualLoading || !sessionId}
+                  >
+                    {visualLoading ? (
+                      <LoadingSpinner size="sm" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </Button>
+                  <Button variant="outline" size="sm" disabled={!plotData}>
                     <ZoomIn className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" disabled={!plotData}>
                     <ZoomOut className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" disabled={!plotData}>
                     <RotateCcw className="h-4 w-4" />
                   </Button>
                 </div>

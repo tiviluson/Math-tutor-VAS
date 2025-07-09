@@ -5,7 +5,7 @@ FastAPI-based REST API server for the AI Geometry Tutor.
 import re
 import uuid
 import time
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 from datetime import datetime, timedelta
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
@@ -218,12 +218,12 @@ async def health_check():
 
 @app.post(
     "/sessions",
-    response_model=Dict[str, str | int],
+    response_model=Dict[str, Union[str, int]],
     dependencies=[Depends(check_environment)],
 )
 async def create_session(
     request: ProblemRequest, background_tasks: BackgroundTasks
-) -> Dict[str, str | int]:
+) -> Dict[str, Union[str, int]]:
     """
     Create a new tutoring session with a geometry problem.
 
@@ -511,6 +511,12 @@ async def list_active_sessions() -> Dict[str, Any]:
     return {"active_sessions": len(active_sessions), "sessions": active_sessions}
 
 
+@app.get("/test")
+async def test_endpoint():
+    """Simple test endpoint for debugging"""
+    return {"message": "Test endpoint working", "timestamp": time.time()}
+
+
 # Exception handlers
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):
@@ -525,6 +531,26 @@ async def general_exception_handler(request, exc):
         status_code=500,
         content={"error": f"Internal server error: {str(exc)}", "success": False},
     )
+
+
+# Request logging middleware for debugging
+@app.middleware("http")
+async def log_requests(request, call_next):
+    import time
+    start_time = time.time()
+    print(f"🔍 Incoming request: {request.method} {request.url}")
+    
+    try:
+        response = await call_next(request)
+        process_time = time.time() - start_time
+        print(f"✅ Response: {response.status_code} (took {process_time:.2f}s)")
+        return response
+    except Exception as e:
+        process_time = time.time() - start_time
+        print(f"❌ Request failed: {str(e)} (took {process_time:.2f}s)")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 # Server configuration
