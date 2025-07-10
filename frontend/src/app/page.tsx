@@ -1,37 +1,52 @@
 'use client';
 
-import { useState } from 'react';
-import Image from 'next/image';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { 
   Calculator, 
   Upload, 
   MessageCircle, 
+  Lightbulb, 
   ListChecks, 
+  PlayCircle, 
+  CheckCircle, 
   Eye,
   Send,
   ZoomIn,
   ZoomOut,
   RotateCcw,
-  BookOpen
+  BookOpen,
+  MoreVertical,
+  HelpCircle,
+  FileText,
+  Loader2
 } from 'lucide-react';
+
+// Import our custom hooks
 import { 
   useTutorSession, 
   useChatMessages, 
   useFacts, 
+  useHint, 
+  useValidation, 
+  useSolution, 
   useVisualization,
   useAutoScroll 
 } from '@/lib/hooks';
-import { 
-  LoadingSpinner, 
-  ErrorDisplay, 
-  LoadingOverlay, 
-  ChatLoading, 
-  EmptyState 
-} from '@/components/ui/loading';
+import { ChatMessage } from '@/lib/api';
+import { MessageRenderer } from '@/components/MessageRenderer';
 
 type AppMode = 'ask' | 'workspace';
 
@@ -40,43 +55,20 @@ export default function Home() {
   const [question, setQuestion] = useState('');
   const [chatInput, setChatInput] = useState('');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [validationAnswer, setValidationAnswer] = useState('');
+  const [isWaitingForValidation, setIsWaitingForValidation] = useState(false);
 
-  // Custom hooks for API integration
-  const { 
-    sessionId, 
-    isLoading: sessionLoading, 
-    error: sessionError, 
-    createSession, 
-    clearError: clearSessionError 
-  } = useTutorSession();
-
-  const { 
-    messages, 
-    isLoading: chatLoading, 
-    error: chatError, 
-    sendMessage, 
-    addInitialMessage, 
-    clearError: clearChatError 
-  } = useChatMessages(sessionId);
-
-  const { 
-    facts, 
-    isLoading: factsLoading, 
-    error: factsError, 
-    getFacts,
-    clearError: clearFactsError 
-  } = useFacts(sessionId);
-
-  const { 
-    plotData, 
-    plotDescription, 
-    isLoading: visualLoading, 
-    error: visualError, 
-    getVisualization,
-    clearError: clearVisualError 
-  } = useVisualization(sessionId);
-
-  const chatContainerRef = useAutoScroll(messages);
+  // Initialize hooks
+  const session = useTutorSession();
+  const chatMessages = useChatMessages(session.sessionId);
+  const facts = useFacts(session.sessionId);
+  const hint = useHint(session.sessionId);
+  const validation = useValidation(session.sessionId);
+  const solution = useSolution(session.sessionId);
+  const visualization = useVisualization(session.sessionId);
+  
+  // Auto-scroll chat container
+  const chatContainerRef = useAutoScroll(chatMessages.messages);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -97,26 +89,142 @@ export default function Home() {
     if (!question.trim()) return;
     
     try {
-      const response = await createSession(question);
+      const response = await session.createSession(question);
       if (response.success) {
         setMode('workspace');
-        addInitialMessage(question);
+        chatMessages.addInitialMessage(question);
+        // Load initial facts
+        await facts.getFacts();
       }
     } catch (error) {
       console.error('Failed to create session:', error);
+      // Show error message
+      alert('Không thể tạo phiên học tập. Vui lòng thử lại.');
     }
   };
 
   const handleSendChat = async () => {
     if (!chatInput.trim()) return;
-    
     const messageText = chatInput;
     setChatInput('');
-    await sendMessage(messageText);
+    await chatMessages.sendMessage(messageText);
   };
 
-  const handleGetFacts = async () => {
-    await getFacts();
+  const handleGetHint = async () => {
+    if (!session.sessionId) return;
+    
+    try {
+      const hintResponse = await hint.getHint();
+      if (hintResponse?.success) {
+        chatMessages.addMessage({
+          text: `💡 Gợi ý: ${hintResponse.hint_text}`,
+          isUser: false,
+        });
+        
+        if (hintResponse.max_hints_reached) {
+          chatMessages.addMessage({
+            text: "⚠️ Bạn đã sử dụng hết số lượng gợi ý cho câu hỏi này.",
+            isUser: false,
+          });
+        }
+      } else {
+        chatMessages.addMessage({
+          text: "❌ Không thể lấy gợi ý lúc này. Vui lòng thử lại.",
+          isUser: false,
+        });
+      }
+    } catch (error) {
+      console.error('Error getting hint:', error);
+      chatMessages.addMessage({
+        text: "❌ Có lỗi xảy ra khi lấy gợi ý. Vui lòng thử lại.",
+        isUser: false,
+      });
+    }
+  };
+
+  const handleValidate = () => {
+    if (!session.sessionId) return;
+    
+    setIsWaitingForValidation(true);
+    chatMessages.addMessage({
+      text: "📝 Vui lòng nhập câu trả lời của bạn để tôi kiểm tra:",
+      isUser: false,
+    });
+  };
+
+  const handleSubmitValidation = async () => {
+    if (!validationAnswer.trim() || !session.sessionId) return;
+    
+    const answer = validationAnswer;
+    setValidationAnswer('');
+    setIsWaitingForValidation(false);
+    
+    // Add user's answer to chat
+    chatMessages.addMessage({
+      text: answer,
+      isUser: true,
+    });
+    
+    try {
+      const validationResponse = await validation.validateSolution(answer);
+      if (validationResponse?.success) {
+        const isCorrect = validationResponse.is_correct;
+        chatMessages.addMessage({
+          text: `${isCorrect ? '✅' : '❌'} ${validationResponse.feedback}`,
+          isUser: false,
+        });
+        
+        if (validationResponse.moved_to_next) {
+          chatMessages.addMessage({
+            text: "🎉 Chuyển sang câu hỏi tiếp theo!",
+            isUser: false,
+          });
+        }
+      } else {
+        chatMessages.addMessage({
+          text: "❌ Không thể kiểm tra câu trả lời lúc này. Vui lòng thử lại.",
+          isUser: false,
+        });
+      }
+    } catch (error) {
+      console.error('Error validating solution:', error);
+      chatMessages.addMessage({
+        text: "❌ Có lỗi xảy ra khi kiểm tra câu trả lời. Vui lòng thử lại.",
+        isUser: false,
+      });
+    }
+  };
+
+  const handleGetSolution = async () => {
+    if (!session.sessionId) return;
+    
+    try {
+      const solutionResponse = await solution.getSolution();
+      if (solutionResponse?.success) {
+        chatMessages.addMessage({
+          text: `📖 Lời giải: ${solutionResponse.solution_text}`,
+          isUser: false,
+        });
+        
+        if (solutionResponse.moved_to_next) {
+          chatMessages.addMessage({
+            text: "➡️ Đã chuyển sang câu hỏi tiếp theo.",
+            isUser: false,
+          });
+        }
+      } else {
+        chatMessages.addMessage({
+          text: "❌ Không thể lấy lời giải lúc này. Vui lòng thử lại.",
+          isUser: false,
+        });
+      }
+    } catch (error) {
+      console.error('Error getting solution:', error);
+      chatMessages.addMessage({
+        text: "❌ Có lỗi xảy ra khi lấy lời giải. Vui lòng thử lại.",
+        isUser: false,
+      });
+    }
   };
 
   if (mode === 'ask') {
@@ -180,27 +288,23 @@ export default function Home() {
           <div className="flex justify-end mt-4">
             <Button 
               onClick={handleAskTutor}
-              disabled={!question.trim() || sessionLoading}
+              disabled={!question.trim() || session.isLoading}
               size="lg"
               className="px-8 py-3 text-lg flex items-center gap-3"
             >
-              {sessionLoading ? (
-                <LoadingSpinner size="sm" />
+              {session.isLoading ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Đang xử lý...
+                </>
               ) : (
-                <MessageCircle className="h-5 w-5" />
+                <>
+                  <MessageCircle className="h-5 w-5" />
+                  Hỏi Tutor
+                </>
               )}
-              {sessionLoading ? 'Đang phân tích...' : 'Hỏi Tutor'}
             </Button>
           </div>
-
-          {sessionError && (
-            <div className="mt-4">
-              <ErrorDisplay 
-                error={sessionError} 
-                onRetry={clearSessionError} 
-              />
-            </div>
-          )}
         </div>
       </div>
     );
@@ -217,204 +321,182 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="flex-1 p-4 overflow-hidden">
+      <div className="flex-shrink-0 p-4">
+        <div className="grid grid-cols-10 gap-4 h-auto mb-1.5">
+          <Card className="col-span-6">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Câu hỏi</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              <div className="text-sm bg-gray-50 rounded p-3 h-32 overflow-y-auto">
+                {question}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="col-span-4">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Kiến thức</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              <div className="space-y-2 h-32 overflow-y-auto">
+                {facts.facts.length === 0 ? (
+                  <p className="text-xs text-gray-500 text-center mt-8">Chưa có kiến thức</p>
+                ) : (
+                  facts.facts.map((fact, index) => (
+                    <div key={index} className="text-xs bg-blue-50 p-2 rounded">
+                      {fact}
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      <div className="flex-1 p-4 pt-0 overflow-hidden">
         <div className="grid grid-cols-10 gap-4 h-full">
-          <div className="col-span-6 flex flex-col">
-            <Card className="flex-shrink-0 mb-4">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Câu hỏi</CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-0">
-                <div className="text-sm bg-gray-50 rounded p-3 h-12 overflow-y-auto mb-4">
-                  {question}
-                </div>
-                <div className="flex justify-center">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={handleGetFacts}
-                    disabled={factsLoading || !sessionId}
-                  >
-                    {factsLoading ? (
-                      <LoadingSpinner size="sm" className="mr-2" />
-                    ) : (
-                      <ListChecks className="h-4 w-4 mr-2" />
-                    )}
-                    Get facts
-                  </Button>
-                </div>
-                {factsError && (
-                  <div className="mt-2">
-                    <ErrorDisplay 
-                      error={factsError} 
-                      onRetry={clearFactsError} 
-                    />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="h-[66vh] flex flex-col">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Trò chuyện với AI Tutor</CardTitle>
-              </CardHeader>
-              <CardContent className="h-full p-4 pt-0 flex flex-col">
-                {/* Chat container với chiều cao linh hoạt */}
-                <div className="flex-1 overflow-y-auto space-y-3 mb-1 pr-2 border border-gray-200 rounded-lg p-3 bg-gray-50 scrollbar-custom" ref={chatContainerRef}>
-                  {messages.map((message, index) => (
-                    <div key={index} className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-xs rounded-lg p-3 text-sm ${
-                        message.isUser 
-                          ? 'bg-blue-500 text-white' 
-                          : 'bg-white text-gray-900 shadow-sm border'
-                      }`}>
-                        {message.text}
-                      </div>
-                    </div>
-                  ))}
-                  {chatLoading && <ChatLoading />}
-                  {messages.length === 0 && !sessionLoading && (
-                    <div className="flex items-center justify-center h-full">
-                      <p className="text-gray-400 text-sm">Hãy bắt đầu cuộc hành trình học tập của bạn</p>
-                    </div>
-                  )}
-                </div>
-
-                {chatError && (
-                  <div className="my-1">
-                    <ErrorDisplay 
-                      error={chatError} 
-                      onRetry={clearChatError} 
-                    />
-                  </div>
-                )}
-
-                <div className="flex gap-2 flex-shrink-0 mt-4">
-                  <Input
-                    placeholder="Hỏi tôi bất cứ điều gì..."
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && !chatLoading && handleSendChat()}
-                    disabled={chatLoading || !sessionId}
-                    className="flex-1"
-                  />
-                  <Button 
-                    onClick={handleSendChat} 
-                    size="sm"
-                    disabled={chatLoading || !sessionId || !chatInput.trim()}
-                  >
-                    {chatLoading ? (
-                      <LoadingSpinner size="sm" />
-                    ) : (
-                      <Send className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="col-span-4 flex flex-col h-full gap-4">
-            <Card className="h-1/3">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Kiến thức</CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-0 flex-1">
-                <LoadingOverlay isLoading={factsLoading} message="Đang phân tích kiến thức...">
-                  <div className="space-y-2 h-full overflow-y-auto">
-                    {facts.length === 0 ? (
-                      <EmptyState
-                        title="Chưa có kiến thức"
-                        description="Nhấn 'Get facts' để phân tích bài toán"
-                        className="mt-8"
+          <Card className="col-span-6 flex flex-col h-full">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center justify-between">
+                <span>Trò chuyện với AI Tutor</span>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onClick={handleGetHint} disabled={hint.isLoading}>
+                      {hint.isLoading ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Lightbulb className="mr-2 h-4 w-4" />
+                      )}
+                      <span>Xin hint</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleValidate} disabled={validation.isLoading}>
+                      {validation.isLoading ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                      )}
+                      <span>Validate</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleGetSolution} disabled={solution.isLoading}>
+                      {solution.isLoading ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <FileText className="mr-2 h-4 w-4" />
+                      )}
+                      <span>Solution</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="h-full p-4 pt-0 flex flex-col">
+              <div className="overflow-y-auto space-y-3 mb-4 pr-2" style={{height: '350px'}} ref={chatContainerRef}>
+                {chatMessages.messages.map((message, index) => (
+                  <div key={index} className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-md rounded-lg p-3 ${
+                      message.isUser 
+                        ? 'bg-blue-500 text-white' 
+                        : 'bg-gray-100 text-gray-900'
+                    }`}>
+                      <MessageRenderer 
+                        content={message.text} 
+                        isUser={message.isUser} 
                       />
-                    ) : (
-                      facts.map((fact, index) => (
-                        <div key={index} className="text-xs bg-blue-50 p-2 rounded">
-                          {fact}
-                        </div>
-                      ))
-                    )}
+                    </div>
                   </div>
-                </LoadingOverlay>
-                {factsError && (
-                  <div className="mt-2">
-                    <ErrorDisplay 
-                      error={factsError} 
-                      onRetry={clearFactsError} 
-                    />
+                ))}
+                {chatMessages.messages.length === 0 && (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-gray-400 text-sm">Hãy bắt đầu cuộc hành trình học tập của bạn</p>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
 
-            <Card className="h-2/3">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Hình minh họa</CardTitle>
-              </CardHeader>
-              <CardContent className="flex-1 p-4 pt-0 flex flex-col">
-                <LoadingOverlay isLoading={visualLoading} message="Đang tạo hình minh họa...">
-                  <div className="flex-1 bg-white border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center relative">
-                    {plotData ? (
-                      <div className="flex flex-col items-center w-full h-full">
-                        <Image 
-                          src={`data:image/png;base64,${plotData}`} 
-                          alt={plotDescription || "Geometric visualization"}
-                          width={400}
-                          height={300}
-                          className="max-w-full max-h-full object-contain"
-                        />
-                        {plotDescription && (
-                          <p className="text-xs text-gray-600 mt-2 text-center px-2">
-                            {plotDescription}
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <EmptyState
-                        icon={<Eye className="h-12 w-12" />}
-                        title="Hình minh họa sẽ xuất hiện tại đây"
-                        description="Canvas JSXGraph tương tác"
-                      />
-                    )}
-                  </div>
-                </LoadingOverlay>
-
-                {visualError && (
-                  <div className="mt-2">
-                    <ErrorDisplay 
-                      error={visualError} 
-                      onRetry={clearVisualError} 
+              <div className="flex gap-2 flex-shrink-0">
+                {isWaitingForValidation ? (
+                  <>
+                    <Input
+                      placeholder="Nhập câu trả lời của bạn..."
+                      value={validationAnswer}
+                      onChange={(e) => setValidationAnswer(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleSubmitValidation()}
+                      className="flex-1"
                     />
-                  </div>
+                    <Button 
+                      onClick={handleSubmitValidation} 
+                      size="sm" 
+                      disabled={!validationAnswer.trim() || validation.isLoading}
+                    >
+                      {validation.isLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button 
+                      onClick={() => setIsWaitingForValidation(false)} 
+                      variant="outline"
+                      size="sm"
+                    >
+                      Hủy
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Input
+                      placeholder="Hỏi tôi bất cứ điều gì..."
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleSendChat()}
+                      className="flex-1"
+                    />
+                    <Button 
+                      onClick={handleSendChat} 
+                      size="sm" 
+                      disabled={!chatInput.trim() || chatMessages.isLoading}
+                    >
+                      {chatMessages.isLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </>
                 )}
+              </div>
+            </CardContent>
+          </Card>
 
-                <div className="flex justify-center gap-2 mt-4">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={getVisualization}
-                    disabled={visualLoading || !sessionId}
-                  >
-                    {visualLoading ? (
-                      <LoadingSpinner size="sm" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </Button>
-                  <Button variant="outline" size="sm" disabled={!plotData}>
-                    <ZoomIn className="h-4 w-4" />
-                  </Button>
-                  <Button variant="outline" size="sm" disabled={!plotData}>
-                    <ZoomOut className="h-4 w-4" />
-                  </Button>
-                  <Button variant="outline" size="sm" disabled={!plotData}>
-                    <RotateCcw className="h-4 w-4" />
-                  </Button>
+          <Card className="col-span-4 flex flex-col h-full">
+            <CardContent className="flex-1 p-4 flex flex-col overflow-hidden">
+              <div className="flex-1 bg-white border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center relative">
+                <div className="text-center text-gray-500">
+                  <Eye className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">Hình minh họa sẽ xuất hiện tại đây</p>
+                  <p className="text-xs text-gray-400 mt-1">Canvas JSXGraph tương tác</p>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+
+              <div className="flex justify-center gap-2 mt-4">
+                <Button variant="outline" size="sm">
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="sm">
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="sm">
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

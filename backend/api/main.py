@@ -419,15 +419,15 @@ async def create_session(
 
 
 @app.get("/status", response_model=SessionStatus)
-async def get_session_status(request: SessionRequest) -> SessionStatus:
+async def get_session_status(session_id: str) -> SessionStatus:
     """Get current status of a tutoring session."""
-    tutor = session_manager.get_session(request.session_id)
+    tutor = session_manager.get_session(session_id)
     if not tutor:
         raise HTTPException(status_code=404, detail="Session not found or expired")
 
     try:
         status = tutor.get_enhanced_status()
-        session_info = session_manager.get_session_info(request.session_id)
+        session_info = session_manager.get_session_info(session_id)
 
         if not status["success"]:
             raise HTTPException(status_code=400, detail=status["error"])
@@ -436,7 +436,7 @@ async def get_session_status(request: SessionRequest) -> SessionStatus:
             raise HTTPException(status_code=404, detail="Session info not found")
 
         return SessionStatus(
-            session_id=request.session_id,
+            session_id=session_id,
             success=status["success"],
             current_question_index=status["current_question_index"]
             + 1,  # Convert to 1-based for API
@@ -494,7 +494,6 @@ async def request_hint(request: SessionRequest) -> HintResponse:
             hint_level=hint_result["hint_level"],
             max_hints_reached=hint_result["max_hints_reached"],
         )
-
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to generate hint: {str(e)}"
@@ -558,9 +557,9 @@ async def validate_solution(request: SolutionRequest) -> ValidationResponse:
 
 
 @app.get("/solution", response_model=SolutionResponse)
-async def get_solution(request: SessionRequest) -> SolutionResponse:
+async def get_solution(session_id: str) -> SolutionResponse:
     """Get the complete solution for the current question and automatically move to the next question."""
-    tutor = session_manager.get_session(request.session_id)
+    tutor = session_manager.get_session(session_id)
     if not tutor:
         raise HTTPException(status_code=404, detail="Session not found or expired")
 
