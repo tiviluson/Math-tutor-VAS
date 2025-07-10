@@ -15,13 +15,18 @@ RUN apt-get update && \
     apt-get clean
 
 RUN mkdir -p /root/.asymptote/
-COPY olympiad.asy /root/.asymptote/
+RUN pip install --no-cache-dir google-generativeai
+RUN sed -i '/disable ghostscript format types/,+6d' /etc/ImageMagick-6/policy.xml
 
-COPY run.asy /root/.asymptote/
+WORKDIR /app
+
+COPY olympiad.asy /root/.asymptote/
+COPY run.asy /root/.asymptote/ 
+COPY viz_tool.py /app/
+COPY viz_prompts.py /app/
+
 
 ENV ASYMPTOTE_TEXPATH="/usr/bin"
 ENV ASYMPTOTE_MAGICKPATH="/usr/bin"
-
-WORKDIR /app
 
 CMD ["tail", "-f", "/dev/null"]

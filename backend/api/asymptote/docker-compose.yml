@@ -1,0 +1,11 @@
+services:
+  geometry-illustrator:
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+    # image: tiviluson/math_tutor_vas_illustrator:v.0.0.3
+    # ports:
+    #   - "8000:8000"
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+    restart: unless-stopped
