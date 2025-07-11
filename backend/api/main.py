@@ -22,18 +22,22 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from geometry_tutor.llm_utils import setup_environment
 from .tutor import ApiGeometryTutor
+from .asymptote.viz_tool import get_visualization
 
 
 # Pydantic models for API requests and responses
 class ProblemRequest(BaseModel):
     problem_text: str = Field(
-        default="", description="Vietnamese geometry problem text (required if is_img=false)"
+        default="",
+        description="Vietnamese geometry problem text (required if is_img=false)",
     )
     is_img: bool = Field(
-        default=False, description="Whether the request includes an image instead of text"
+        default=False,
+        description="Whether the request includes an image instead of text",
     )
     img: Optional[str] = Field(
-        default=None, description="Base64 encoded image of the geometry problem (required if is_img=true)"
+        default=None,
+        description="Base64 encoded image of the geometry problem (required if is_img=true)",
     )
 
 
@@ -86,14 +90,28 @@ class HintResponse(BaseModel):
 
 class ValidationResponse(BaseModel):
     success: bool = Field(..., description="Kết quả xử lý có thành công không")
-    is_correct: bool = Field(..., description="Nội dung có đúng không (false cho câu hỏi)")
+    is_correct: bool = Field(
+        ..., description="Nội dung có đúng không (false cho câu hỏi)"
+    )
     feedback: str = Field(..., description="Phản hồi chi tiết cho học sinh")
     score: int = Field(..., description="Điểm số từ 0-100")
-    moved_to_next: bool = Field(default=False, description="Đã chuyển sang câu tiếp theo chưa")
-    current_question_index: Optional[int] = Field(None, description="Chỉ số câu hỏi hiện tại")
-    session_complete: bool = Field(default=False, description="Phiên làm việc đã hoàn thành chưa")
-    input_type: Optional[str] = Field(None, description="Loại nội dung: question, complete_solution, partial_solution, statement, unclear")
-    message_type: Optional[str] = Field(None, description="Loại phản hồi: answer, validation_success, validation_feedback")
+    moved_to_next: bool = Field(
+        default=False, description="Đã chuyển sang câu tiếp theo chưa"
+    )
+    current_question_index: Optional[int] = Field(
+        None, description="Chỉ số câu hỏi hiện tại"
+    )
+    session_complete: bool = Field(
+        default=False, description="Phiên làm việc đã hoàn thành chưa"
+    )
+    input_type: Optional[str] = Field(
+        None,
+        description="Loại nội dung: question, complete_solution, partial_solution, statement, unclear",
+    )
+    message_type: Optional[str] = Field(
+        None,
+        description="Loại phản hồi: answer, validation_success, validation_feedback",
+    )
 
 
 class SolutionResponse(BaseModel):
@@ -104,14 +122,23 @@ class SolutionResponse(BaseModel):
     session_complete: bool = False
 
 
+class IllustrationResponse(BaseModel):
+    success: bool
+    message: str
+    b64_string_viz: Optional[str] = Field(
+        None, description="Base64 encoded visualization image"
+    )
+    error: Optional[str] = None
+
+
 # Helper function to process image and extract problem text
 async def process_image_to_text(image_b64: str) -> str:
     """
     Process base64 encoded image to extract geometry problem text using LLM.
-    
+
     Args:
         image_b64: Base64 encoded image (can include data URL prefix or just base64)
-        
+
     Returns:
         Extracted problem text from image
     """
@@ -119,13 +146,13 @@ async def process_image_to_text(image_b64: str) -> str:
         # Validate base64 input
         if not image_b64 or not isinstance(image_b64, str):
             raise ValueError("Invalid base64 image data")
-        
+
         # Clean up base64 string - remove data URL prefix if present
-        if image_b64.startswith('data:image/'):
+        if image_b64.startswith("data:image/"):
             # Extract just the base64 part after the comma
-            if ',' in image_b64:
-                image_b64 = image_b64.split(',', 1)[1]
-        
+            if "," in image_b64:
+                image_b64 = image_b64.split(",", 1)[1]
+
         # Basic validation - try to decode base64
         try:
             image_data = base64.b64decode(image_b64)
@@ -133,14 +160,15 @@ async def process_image_to_text(image_b64: str) -> str:
                 raise ValueError("Empty image data")
         except Exception as decode_error:
             raise ValueError(f"Invalid base64 image: {decode_error}")
-        
+
         # Initialize LLM for vision processing
         from geometry_tutor.llm_utils import initialize_llm
+
         llm = initialize_llm()
-        
+
         if not llm:
             raise ValueError("Failed to initialize LLM for image processing")
-        
+
         # Create the vision prompt
         prompt = """Bạn là một chuyên gia toán học, hãy phân tích hình ảnh bài toán hình học này và trích xuất thông tin.
 
@@ -167,32 +195,33 @@ Yêu cầu:
 
         # Prepare the message with image
         from langchain_core.messages import HumanMessage
-        
+
         message = HumanMessage(
             content=[
                 {"type": "text", "text": prompt},
                 {
                     "type": "image_url",
-                    "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}
-                }
+                    "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"},
+                },
             ]
         )
-        
+
         # Make the LLM call
         try:
             response = llm.invoke([message])
             response_text = response.content
-            
+
             # Ensure response_text is a string
             if isinstance(response_text, list):
                 response_text = str(response_text)
             elif not isinstance(response_text, str):
                 response_text = str(response_text)
-            
+
             # Try to parse JSON response
             from geometry_tutor.llm_utils import safe_json_parse
+
             result = safe_json_parse(response_text)
-            
+
             if result and "problem_text" in result:
                 # Use the extracted text from LLM
                 final_text = result["problem_text"]
@@ -209,19 +238,19 @@ Yêu cầu:
                     return final_text
                 else:
                     return "Không thể trích xuất thông tin từ hình ảnh. Vui lòng cung cấp văn bản bài toán."
-            
+
             # If JSON parsing fails, try to extract text directly from response
             elif response_text.strip():
                 return response_text
-            
+
             # If LLM response is empty
             else:
                 return "Không thể trích xuất thông tin từ hình ảnh. Vui lòng cung cấp văn bản bài toán."
-                    
+
         except Exception as llm_error:
             print(f"LLM processing failed: {llm_error}")
             raise ValueError(f"Failed to process image with LLM: {llm_error}")
-        
+
     except Exception as e:
         raise ValueError(f"Failed to process image: {str(e)}")
 
@@ -360,10 +389,10 @@ async def create_session(
 ) -> Dict[str, str | int]:
     """
     Create a new tutoring session with a geometry problem.
-    
+
     - If is_img=true: Processes the base64 image to extract problem text
     - If is_img=false: Uses the provided problem_text directly
-    
+
     Only one of problem_text or img should be provided based on the is_img flag.
 
     Returns session_id for subsequent API calls.
@@ -377,8 +406,7 @@ async def create_session(
             except Exception as img_error:
                 print(f"Image processing failed: {img_error}")
                 raise HTTPException(
-                    status_code=400, 
-                    detail=f"Failed to process image: {str(img_error)}"
+                    status_code=400, detail=f"Failed to process image: {str(img_error)}"
                 )
         else:
             # Use provided problem text
@@ -387,8 +415,12 @@ async def create_session(
         # Validate that we have some problem text
         if not final_problem_text.strip():
             raise HTTPException(
-                status_code=400, 
-                detail="Failed to extract problem text from image" if request.img else "Problem text is required" 
+                status_code=400,
+                detail=(
+                    "Failed to extract problem text from image"
+                    if request.img
+                    else "Problem text is required"
+                ),
             )
 
         # Create tutor instance
@@ -607,6 +639,56 @@ async def get_solution(request: SessionRequest) -> SolutionResponse:
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to generate solution: {str(e)}"
+        )
+
+
+@app.get("/illustration", response_model=IllustrationResponse)
+async def get_illustration(request: SessionRequest) -> IllustrationResponse:
+    """Get a geometric illustration/visualization for the current problem."""
+    tutor = session_manager.get_session(request.session_id)
+    if not tutor:
+        raise HTTPException(status_code=404, detail="Session not found or expired")
+
+    try:
+        # Get session status to retrieve problem and illustration steps
+        status = tutor.get_enhanced_status()
+        if not status["success"]:
+            raise HTTPException(status_code=400, detail=status["error"])
+
+        # Extract required data for visualization
+        original_problem = status.get("original_problem", "")
+        illustration_steps = status.get("illustration_steps", [])
+
+        # Format illustration steps for the visualization function
+        student_drawing_steps = {"illustration_steps": illustration_steps}
+
+        # Call the get_visualization function
+        b64_string_viz = get_visualization(
+            session_id=request.session_id,
+            problem=original_problem,
+            student_drawing_steps=student_drawing_steps,
+        )
+
+        if b64_string_viz:
+            return IllustrationResponse(
+                success=True,
+                message="Illustration generated successfully",
+                b64_string_viz=b64_string_viz,
+            )
+        else:
+            return IllustrationResponse(
+                success=False,
+                message="Failed to generate illustration",
+                b64_string_viz=None,
+                error="Visualization generation returned empty result",
+            )
+
+    except Exception as e:
+        return IllustrationResponse(
+            success=False,
+            message="Failed to generate illustration",
+            b64_string_viz=None,
+            error=str(e),
         )
 
 

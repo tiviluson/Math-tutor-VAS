@@ -20,8 +20,7 @@ RUN sed -i '/disable ghostscript format types/,+6d' /etc/ImageMagick-6/policy.xm
 
 WORKDIR /app
 
-COPY olympiad.asy /root/.asymptote/
-COPY run.asy /root/.asymptote/ 
+COPY olympiad.asy /app/
 COPY viz_tool.py /app/
 COPY viz_prompts.py /app/
 

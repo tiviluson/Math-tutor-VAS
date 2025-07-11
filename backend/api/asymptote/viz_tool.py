@@ -1,8 +1,7 @@
 import os, subprocess, base64
 import google.generativeai as genai
-from viz_prompts import (
+from .viz_prompts import (
     prompt_gen_asymptote,
-    # prompt_get_key_objects,
     prompt_get_drawing_steps,
     prompt_get_geometry_reasoning,
 )
@@ -29,7 +28,7 @@ class VizSolver:
         self.keyobjects = None
         self.keyobjects_prompt = None
 
-        self.drawing_guides = None
+        self.asymptote_drawing_steps = None
         self.drawing_steps_prompt = None
 
         self.geometry_reasoning = None
@@ -48,16 +47,19 @@ class VizSolver:
 
     def create_drawing_steps(self):
         self.drawing_steps_prompt = prompt_get_drawing_steps.format(
-            problem=self.init_problem,
-            student_drawing_steps=self.student_drawing_steps)
+            # problem=self.init_problem,
+            student_drawing_steps=self.student_drawing_steps
+        )
 
-        self.drawing_guides = model.generate_content(self.drawing_steps_prompt).text
+        self.asymptote_drawing_steps = model.generate_content(
+            self.drawing_steps_prompt
+        ).text
 
     def get_geometry_reasoning(self):
         self.geometry_reasoning_prompt = prompt_get_geometry_reasoning.format(
-            problem=self.init_problem,
-            student_drawing_steps=self.drawing_guides,
-            asymptote_drawing_steps=self.drawing_guides,
+            # problem=self.init_problem,
+            student_drawing_steps=self.student_drawing_steps,
+            asymptote_drawing_steps=self.asymptote_drawing_steps,
         )
         self.geometry_reasoning = model.generate_content(
             self.geometry_reasoning_prompt
@@ -65,9 +67,9 @@ class VizSolver:
 
     def gen_asymptote_code(self):
         self.asymptote_code_prompt = prompt_gen_asymptote.format(
-            problem=self.init_problem,
-            student_drawing_steps=self.drawing_guides,
-            asymptote_drawing_steps=self.drawing_guides,
+            # problem=self.init_problem,
+            student_drawing_steps=self.student_drawing_steps,
+            asymptote_drawing_steps=self.asymptote_drawing_steps,
             geometry_reasoning=self.geometry_reasoning,
         )
         self.asymptote_code = model.generate_content(self.asymptote_code_prompt).text
@@ -143,37 +145,4 @@ def get_visualization(session_id, problem, student_drawing_steps):
     # Asymptote Image Generation by LLM
     VizS.problem_to_viz_code()
 
-    return {
-        "session_id": VizS.session_id,
-        "keyobjects": VizS.keyobjects,
-        "drawing_guides": VizS.drawing_guides,
-        "geometry_reasoning": VizS.geometry_reasoning,
-        "keyobjects_prompt": VizS.keyobjects_prompt,
-        "drawing_steps_prompt": VizS.drawing_steps_prompt,
-        "geometry_reasoning_prompt": VizS.geometry_reasoning_prompt,
-        "asymptote_code_prompt": VizS.asymptote_code_prompt,
-        "asymptote_code": VizS.asymptote_code,
-        "b64_string_viz": VizS.b64_string_viz,
-        "asym_err": VizS.code_err,
-        "llm_err": VizS.err,
-    }
-
-
-if __name__ == "__main__":
-    # Example usage
-    session_id = "123"
-    problem = """Từ một điểm A nằm ngoài đường tròn (O;R) với OA = 2R, kẻ hai tiếp tuyến\nAB, AC đến đường tròn (B,C là các tiếp điểm). Vẽ đường kính BD của đường tròn (O). Gọi E\nlà giao điểm thứ hai của đường thẳng AD với (O). Đường thẳng BC và AO cắt nhau tại H.\n\na) Chứng minh rằng tam giác BED vuông và ABHE là tứ giác nội tiếp."""
-    student_drawing_steps = {"illustration_steps": [
-        "Vẽ đường tròn tâm O bán kính R.",
-        "Vẽ điểm A nằm ngoài đường tròn sao cho OA = 2R.",
-        "Vẽ hai tiếp tuyến AB và AC đến đường tròn (O) với B và C là các tiếp điểm.",
-        "Vẽ đường kính BD của đường tròn (O).",
-        "Vẽ đường thẳng AD cắt đường tròn (O) tại E (E khác D).",
-        "Vẽ đường thẳng BC cắt AO tại H.",
-        "Nối các điểm B, E, D để tạo thành tam giác BED.",
-        "Nối các điểm A, B, H, E để tạo thành tứ giác ABHE.",
-        "Nối các điểm D, H, E để tạo thành tam giác DHE."
-    ]}
-
-    result = get_visualization(session_id, problem, student_drawing_steps)
-    # print(result)
+    return VizS.b64_string_viz
