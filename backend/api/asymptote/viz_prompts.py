@@ -60,8 +60,6 @@ prompt_gen_asymptote = """
             - Start the answer with: import olympiad; import settings; size(600, 600);
 
         Example:
-        Problem: "Cho tam giác ABC vuông tại A, có AB = 3, AC = 4. Gọi O là tâm đường tròn ngoại tiếp tam giác ABC.\na. Tính độ dài BC và bán kính đường tròn ngoại tiếp."
-
         Student_drawing_steps:
         {{
         "illustration_steps": [
@@ -131,7 +129,6 @@ prompt_gen_asymptote = """
         draw(rightanglemark(B,A,C,10));
         ```
 
-        Problem: {problem}
         Student_drawing_steps: {student_drawing_steps}
         Asymptote_drawing_steps: {asymptote_drawing_steps}
         Reasoning: {geometry_reasoning}
@@ -149,7 +146,6 @@ prompt_get_drawing_steps = """
     - No markdown marks or redundant text.
 
     Example:
-    Problem: In the triangle ABC, sides AB and CB have equal lengths and the measure of angle $angle ABC$ is equal to 36 degrees. What is the measure of angle $angle BOC$ where O is the center of the circle goes through A, B, and C?
     Student_drawing_steps:
     {{
         "illustration_steps": [
@@ -176,7 +172,6 @@ prompt_get_drawing_steps = """
     ]
     }}
 
-    Problem: {problem}
     Student_drawing_steps: {student_drawing_steps}
     Return:
     """
@@ -196,8 +191,6 @@ prompt_get_geometry_reasoning = """
     
 
     Example:
-    Problem: In the triangle ABC, sides AB and CB have equal lengths and the measure of angle $angle ABC$ is equal to 36 degrees. What is the measure of angle $angle BOC$ where O is the center of the circle goes through A, B, and C?
-
     Student_drawing_steps:
     {{
         "illustration_steps": [
@@ -262,27 +255,10 @@ prompt_get_geometry_reasoning = """
         {{
         "object": "Line segment OA",
         "description": "Defined by points O and A, depends on points O and A."
-        }},
-        {{
-        "object": "Angle BOC",
-        "description": "The angle at point O between lines OB and OC, which is 144 degrees."
-        }},
-        {{
-        "object": "Angle ABC",
-        "description": "The angle at point B between lines AB and BC, which is 36 degrees."
-        }},
-        {{
-        "object": "Angle BAC",
-        "description": "The angle at point A between lines AB and AC, which is 72 degrees."
-        }},
-        {{
-        "object": "Angle BCA",
-        "description": "The angle at point C between lines BC and AC, which is 72 degrees."
         }}
     ]
     }}
-
-    Problem: {problem}
+    
     Student_drawing_steps: {student_drawing_steps}
     Asymptote_drawing_steps: {asymptote_drawing_steps}
     Return:
