@@ -90,6 +90,20 @@ class ExtractedText(BaseModel):
     )
 
 
+class InputClassification(BaseModel):
+    """Model for classifying user input type."""
+    
+    input_type: str = Field(
+        description="Type of input: question, complete_solution, partial_solution, statement, unclear"
+    )
+    confidence: int = Field(
+        default=0, description="Confidence level 0-100"
+    )
+    explanation: str = Field(
+        default="", description="Brief explanation of the classification"
+    )
+
+
 def create_parsing_chain(llm):
     """Create a chain for parsing geometry problems."""
     parser = PydanticOutputParser(pydantic_object=ParsedProblem)
@@ -173,6 +187,19 @@ def create_vision_extraction_chain(llm):
             return self.parser.parse(response.content)
 
     return VisionChain(llm, parser)
+
+
+def create_input_classification_chain(llm):
+    """Create a chain for classifying user input type."""
+    parser = PydanticOutputParser(pydantic_object=InputClassification)
+
+    prompt = PromptTemplate(
+        template="{classification_prompt}\n{format_instructions}",
+        input_variables=["classification_prompt"],
+        partial_variables={"format_instructions": parser.get_format_instructions()},
+    )
+
+    return prompt | llm | parser
 
 
 def safe_json_parse(text: str, default: Optional[dict] = None) -> dict:

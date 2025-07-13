@@ -1,0 +1,11 @@
+{
+	"name": "Asymptote Development Container",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": ".."
+    },
+    "containerEnv": {
+            "GOOGLE_API_KEY": "${localEnv:GOOGLE_API_KEY}",
+            "TESTING_API_KEY": "abc"
+    }
+}
