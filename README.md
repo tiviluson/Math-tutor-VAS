@@ -6,7 +6,8 @@
 [![LangGraph](https://img.shields.io/badge/LangGraph-0.5+-purple.svg)](https://langchain-ai.github.io/langgraph/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://docker.com)
 
-An intelligent AI-powered geometry tutor that combines **LangGraph state management**, **Google Gemini AI**, and **advanced visualization with Asymptote** to provide interactive Vietnamese geometry problem solving with real-time hints, solution validation, and professional geometric figure generation.
+An intelligent AI-powered geometry tutor that combines **LangGraph state management**, **Google Gemini AI**, and **advanced visualization with Asymptote** to provide interactive Vietnamese geometry problem solving with real-time hints, solution validation, and professional geometric figure generation.  
+At the current stage, it supports text-based problem solving and image-based problem extraction, with a focus on Vietnamese geometry education for secondary Vietnamese students with planar geometry.
 
 ## 🌟 Key Features
 
