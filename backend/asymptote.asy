@@ -1,8 +1,8 @@
 
 import olympiad; import settings; size(600, 600);
 pair A = (0,0);
-pair B = (5,0);
-pair C = (0,5);
+pair B = (3,0);
+pair C = (0,4);
 
 draw(A--B--C--cycle);
 draw(rightanglemark(B,A,C,10));

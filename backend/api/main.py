@@ -643,9 +643,9 @@ async def get_solution(session_id: str) -> SolutionResponse:
 
 
 @app.get("/illustration", response_model=IllustrationResponse)
-async def get_illustration(request: SessionRequest) -> IllustrationResponse:
+async def get_illustration(session_id: str) -> IllustrationResponse:
     """Get a geometric illustration/visualization for the current problem."""
-    tutor = session_manager.get_session(request.session_id)
+    tutor = session_manager.get_session(session_id)
     if not tutor:
         raise HTTPException(status_code=404, detail="Session not found or expired")
 
@@ -664,7 +664,7 @@ async def get_illustration(request: SessionRequest) -> IllustrationResponse:
 
         # Call the get_visualization function
         b64_string_viz = get_visualization(
-            session_id=request.session_id,
+            session_id=session_id,
             problem=original_problem,
             student_drawing_steps=student_drawing_steps,
         )
