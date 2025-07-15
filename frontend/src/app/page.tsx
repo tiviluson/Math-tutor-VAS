@@ -311,7 +311,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex flex-col">
+    <div className="h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex flex-col overflow-hidden">
       {/* Header */}
       <div className="bg-white/90 backdrop-blur-md border-b border-slate-200/60 p-4 flex-shrink-0 shadow-sm">
         <div className="text-center">
@@ -323,9 +323,17 @@ export default function Home() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col max-w-5xl mx-auto w-full">
+      <div className="flex-1 flex flex-col max-w-5xl mx-auto w-full min-h-0">
         {/* Chat Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={chatContainerRef}>
+        <div 
+          className="overflow-y-auto p-4 space-y-4 scrollbar-custom"
+          style={{ 
+            height: 'calc(100vh - 220px)',
+            maxHeight: 'calc(100vh - 220px)',
+            minHeight: '300px'
+          }}
+          ref={chatContainerRef}
+        >
           {chatMessages.messages.map((message, index) => (
             <div key={index} className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-sm md:max-w-lg lg:max-w-xl xl:max-w-2xl px-4 py-3 ${
@@ -352,8 +360,82 @@ export default function Home() {
           )}
         </div>
 
+        {/* Feature Buttons Row */}
+        <div className="flex flex-row justify-center gap-2 flex-wrap px-4 pb-4">
+          <Button
+            variant="outline"
+            size="default"
+            onClick={() => setShowQuestionModal(true)}
+            className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300"
+          >
+            Câu hỏi
+          </Button>
+          
+          <Button
+            variant="outline"
+            size="default"
+            onClick={() => setShowKnowledgeModal(true)}
+            className="bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300"
+          >
+            Kiến thức liên quan
+          </Button>
+          
+          <Button
+            variant="outline"
+            size="default"
+            onClick={() => setShowVisualizationModal(true)}
+            className="bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300"
+          >
+            Hình minh họa
+          </Button>
+          
+          <Button
+            variant="outline"
+            size="default"
+            onClick={handleGetHint}
+            disabled={hint.isLoading}
+            className="bg-yellow-50 border-yellow-200 text-yellow-700 hover:bg-yellow-100 hover:border-yellow-300"
+          >
+            {hint.isLoading ? (
+              <>
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                Gợi ý
+              </>
+            ) : (
+              'Gợi ý'
+            )}
+          </Button>
+          
+          <Button
+            variant="outline"
+            size="default"
+            onClick={() => setIsWaitingForValidation(true)}
+            disabled={!session.sessionId}
+            className="bg-green-50 border-green-200 text-green-700 hover:bg-green-100 hover:border-green-300"
+          >
+            Kiểm tra
+          </Button>
+          
+          <Button
+            variant="outline"
+            size="default"
+            onClick={handleGetSolution}
+            disabled={solution.isLoading}
+            className="bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100 hover:border-orange-300"
+          >
+            {solution.isLoading ? (
+              <>
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                Lời giải
+              </>
+            ) : (
+              'Lời giải'
+            )}
+          </Button>
+        </div>
+
         {/* Input Area */}
-        <div className="border-t border-slate-200/60 bg-white/70 backdrop-blur-md p-4 pb-8 flex-shrink-0 shadow-lg">
+        <div className="border-t border-slate-200/60 bg-white/70 backdrop-blur-md p-6 flex-shrink-0 shadow-lg">
           {isWaitingForValidation ? (
             // Validation Input
             <div className="flex gap-2 items-center">
@@ -386,105 +468,28 @@ export default function Home() {
               </Button>
             </div>
           ) : (
-            // Normal Chat Input with Feature Buttons Above
-            <div className="space-y-3">
-              {/* Feature Buttons Row */}
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowQuestionModal(true)}
-                  className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300"
-                >
-                  Câu hỏi
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowKnowledgeModal(true)}
-                  className="bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300"
-                >
-                  Kiến thức
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowVisualizationModal(true)}
-                  className="bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100 hover:border-purple-300"
-                >
-                  Hình minh họa
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleGetHint}
-                  disabled={hint.isLoading}
-                  className="bg-yellow-50 border-yellow-200 text-yellow-700 hover:bg-yellow-100 hover:border-yellow-300"
-                >
-                  {hint.isLoading ? (
-                    <>
-                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                      Gợi ý
-                    </>
-                  ) : (
-                    'Gợi ý'
-                  )}
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsWaitingForValidation(true)}
-                  disabled={!session.sessionId}
-                  className="bg-green-50 border-green-200 text-green-700 hover:bg-green-100 hover:border-green-300"
-                >
-                  Kiểm tra
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleGetSolution}
-                  disabled={solution.isLoading}
-                  className="bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100 hover:border-orange-300"
-                >
-                  {solution.isLoading ? (
-                    <>
-                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                      Lời giải
-                    </>
-                  ) : (
-                    'Lời giải'
-                  )}
-                </Button>
-              </div>
-
-              {/* Chat Input Row */}
-              <div className="flex gap-2 items-center">
-                <Input
-                  placeholder="Hỏi tôi bất cứ điều gì..."
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendChat()}
-                  className="flex-1 rounded-full border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-white/80"
-                />
-                
-                <Button 
-                  onClick={handleSendChat} 
-                  disabled={!chatInput.trim() || chatMessages.isLoading}
-                  className="rounded-full p-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 hover:scale-105 shadow-lg"
-                  size="sm"
-                >
-                  {chatMessages.isLoading ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Send className="h-5 w-5" />
-                  )}
-                </Button>
-              </div>
+            // Normal Chat Input
+            <div className="flex gap-2 items-center">
+              <Input
+                placeholder="Hỏi tôi bất cứ điều gì..."
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSendChat()}
+                className="flex-1 rounded-full border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 bg-white/80"
+              />
+              
+              <Button 
+                onClick={handleSendChat} 
+                disabled={!chatInput.trim() || chatMessages.isLoading}
+                className="rounded-full p-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 hover:scale-105 shadow-lg"
+                size="sm"
+              >
+                {chatMessages.isLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Send className="h-5 w-5" />
+                )}
+              </Button>
             </div>
           )}
         </div>
@@ -493,7 +498,7 @@ export default function Home() {
       {/* Modals */}
       {/* Question Modal */}
       {showQuestionModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-white/20 backdrop-blur-md flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden">
             <div className="flex justify-between items-center p-4 border-b">
               <h3 className="text-lg font-semibold">Câu hỏi</h3>
@@ -516,7 +521,7 @@ export default function Home() {
 
       {/* Knowledge Modal */}
       {showKnowledgeModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-white/20 backdrop-blur-md flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden">
             <div className="flex justify-between items-center p-4 border-b">
               <h3 className="text-lg font-semibold">Kiến thức</h3>
@@ -547,7 +552,7 @@ export default function Home() {
 
       {/* Visualization Modal */}
       {showVisualizationModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-white/20 backdrop-blur-md flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
             <div className="flex justify-between items-center p-4 border-b">
               <h3 className="text-lg font-semibold">Hình minh họa</h3>
