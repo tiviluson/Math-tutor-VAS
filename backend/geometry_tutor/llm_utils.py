@@ -33,6 +33,9 @@ def initialize_llm(
 class ParsedProblem(BaseModel):
     """Model for parsed geometry problem structure."""
 
+    problem_statement_only: str = Field(
+        description="Problem statement without any questions"
+    )
     points: List[str] = Field(
         default_factory=list, description="List of geometric points"
     )
@@ -101,6 +104,17 @@ class InputClassification(BaseModel):
     )
     explanation: str = Field(
         default="", description="Brief explanation of the classification"
+    )
+
+
+class QuestionExtraction(BaseModel):
+    """Model for extracting new facts and illustration steps from question text."""
+
+    new_facts: List[str] = Field(
+        default_factory=list, description="New facts mentioned in the question"
+    )
+    new_illustration_steps: List[str] = Field(
+        default_factory=list, description="New illustration steps mentioned in the question. If there are new illustration steps, they should be added to the existing ones coherently."
     )
 
 
@@ -196,6 +210,19 @@ def create_input_classification_chain(llm):
     prompt = PromptTemplate(
         template="{classification_prompt}\n{format_instructions}",
         input_variables=["classification_prompt"],
+        partial_variables={"format_instructions": parser.get_format_instructions()},
+    )
+
+    return prompt | llm | parser
+
+
+def create_question_extraction_chain(llm):
+    """Create a chain for extracting facts and steps from question text."""
+    parser = PydanticOutputParser(pydantic_object=QuestionExtraction)
+
+    prompt = PromptTemplate(
+        template=prompt_templates.get_question_extraction_prompt(),
+        input_variables=["question", "known_facts", "illustration_steps"],
         partial_variables={"format_instructions": parser.get_format_instructions()},
     )
 

@@ -13,14 +13,18 @@ class GraphState(TypedDict):
     """
 
     # --- Initial Problem Setup ---
-    original_problem: str  # Raw text input from the user
+    original_problem: (
+        str  # Raw text input from the user (questions removed after parsing)
+    )
     parsed_elements: Dict[str, Any]  # Structured representation of geometric givens
     # Example: {'points': ['A', 'B'], 'lines': [], 'facts': ['AB=5']}
     questions: List[str]  # Ordered list of questions from the problem
 
     # --- Dynamic Solver State ---
     current_question_index: int  # The index of the current question being addressed
-    known_facts: List[str]  # A running list of givens (initial facts from problem)
+    known_facts: List[
+        str
+    ]  # Facts available (updated when solutions are validated or when moving to next question)
     ai_discovered_facts: List[
         str
     ]  # Facts discovered by AI during reasoning (separate from user knowledge)
@@ -40,7 +44,9 @@ class GraphState(TypedDict):
     error_message: str  # For communicating errors (e.g., parsing failure)
 
     # --- Visualization State ---
-    illustration_steps: List[str]  # Steps to draw geometric illustrations
+    illustration_steps: List[
+        str
+    ]  # Steps to draw geometric illustrations (updated when solutions are validated or when moving to next question)
     # Example: ["Vẽ đường tròn tâm O, bán kính R", "Lấy điểm A trên đường thẳng qua O"]
 
     # --- Control Flow ---

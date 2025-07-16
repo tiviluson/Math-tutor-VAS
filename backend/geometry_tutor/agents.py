@@ -11,6 +11,7 @@ from .llm_utils import (
     create_reasoning_chain,
     create_validation_chain,
     create_input_classification_chain,
+    create_question_extraction_chain,
 )
 from .prompts import prompt_templates, hint_builder
 
@@ -20,6 +21,7 @@ def parse_problem(state: GraphState) -> GraphState:
     Node 1: parse_problem
     Agent: "Parsing Agent"
     Extracts structured information from the Vietnamese geometry problem.
+    Uses LLM to separate problem statement from questions and extract facts and illustration steps.
     """
     llm = initialize_llm()
     if not llm:
@@ -33,6 +35,9 @@ def parse_problem(state: GraphState) -> GraphState:
         parsing_chain = create_parsing_chain(llm)
         parsed_data = parsing_chain.invoke({"problem": state["original_problem"]})
 
+        # Use the separated problem statement from the LLM
+        state["original_problem"] = parsed_data.problem_statement_only
+
         state["parsed_elements"] = {
             "points": parsed_data.points,
             "lines": parsed_data.lines,
@@ -41,11 +46,16 @@ def parse_problem(state: GraphState) -> GraphState:
         }
 
         state["questions"] = parsed_data.questions
+
+        # Initialize known_facts and illustration_steps only with base problem facts
+        # Question-specific facts and illustration steps will be added when needed
         state["known_facts"] = parsed_data.given_facts.copy()
 
-        # Add illustration steps from parsing
+        # Add base illustration steps from parsing
         illustration_steps = parsed_data.illustration_steps
-        state["illustration_steps"].extend(illustration_steps)
+        state["illustration_steps"] = (
+            illustration_steps.copy() if illustration_steps else []
+        )
 
         if not state["questions"]:
             state["error_message"] = (
@@ -99,6 +109,7 @@ def reason_and_solve(state: GraphState) -> GraphState:
             step_data = reasoning_chain_processor.invoke(
                 {"solver_prompt": solver_prompt}
             )
+            print(step_data)
 
             reasoning_chain.append(
                 {
@@ -109,6 +120,7 @@ def reason_and_solve(state: GraphState) -> GraphState:
 
             # Add new conclusion to AI discoveries (separate from user's known facts)
             conclusion = step_data.conclusion.strip()
+            print(f"New AI discovery: {conclusion}")
             if conclusion and conclusion not in all_available_facts:
                 ai_discoveries.append(conclusion)
 
@@ -130,7 +142,7 @@ def reason_and_solve(state: GraphState) -> GraphState:
     # Store the reasoning chain and AI discoveries separately
     state["reasoning_chain"] = reasoning_chain
     state["ai_discovered_facts"] = ai_discoveries
-    # known_facts remains unchanged - only contains original problem facts
+    # AI discoveries are NOT merged here - only when question is solved/validated
 
     return state
 
@@ -279,17 +291,7 @@ def validate_solution(state: GraphState) -> GraphState:
                 state["final_answer"] += "\n\n✅ Lời giải của bạn đã được chấp nhận!"
 
                 # MERGE AI discoveries into known facts when solution is validated
-                ai_discoveries = state.get("ai_discovered_facts", [])
-                current_known = state["known_facts"]
-
-                # Add AI discoveries to known facts (avoid duplicates)
-                for discovery in ai_discoveries:
-                    if discovery and discovery not in current_known:
-                        current_known.append(discovery)
-
-                state["known_facts"] = current_known
-                # Clear AI discoveries since they're now part of known facts
-                state["ai_discovered_facts"] = []
+                state = merge_ai_discoveries(state)
 
                 # Add additional illustration steps when solution is validated
                 additional_steps = validation_data.additional_illustration_steps
@@ -355,17 +357,7 @@ def generate_solution(state: GraphState) -> GraphState:
         print("=" * 60 + "\n")
 
         # MERGE AI discoveries into known facts when complete solution is provided
-        ai_discoveries = state.get("ai_discovered_facts", [])
-        current_known = state["known_facts"]
-
-        # Add AI discoveries to known facts (avoid duplicates)
-        for discovery in ai_discoveries:
-            if discovery and discovery not in current_known:
-                current_known.append(discovery)
-
-        state["known_facts"] = current_known
-        # Clear AI discoveries since they're now part of known facts
-        state["ai_discovered_facts"] = []
+        state = merge_ai_discoveries(state)
 
     except Exception as e:
         state["final_answer"] = f"Lỗi khi tạo lời giải: {str(e)}"
@@ -378,6 +370,7 @@ def move_to_next_question(state: GraphState) -> GraphState:
     """
     Node 6: move_to_next_question
     Standard function to advance to the next question and reset interaction state.
+    Extracts new facts and illustration steps mentioned in the new question.
     """
     # Increment question index
     state["current_question_index"] += 1
@@ -390,6 +383,15 @@ def move_to_next_question(state: GraphState) -> GraphState:
     state["final_answer"] = ""
     state["reasoning_chain"] = []
     state["ai_discovered_facts"] = []  # Reset AI discoveries for new question
+
+    # Extract new facts and illustration steps mentioned in the new question
+    # This is separate from AI discoveries and should be done for each new question
+    if state["current_question_index"] < len(state["questions"]):
+        state = extract_question_facts_and_steps(state)
+
+    # Note: known_facts and illustration_steps persist across questions
+    # They may be updated when moving to next question if new facts/steps are mentioned
+    # in the question itself, or when AI discoveries are merged after solving
 
     # Check if all questions are complete
     if state["current_question_index"] >= len(state["questions"]):
@@ -406,7 +408,6 @@ def move_to_next_question(state: GraphState) -> GraphState:
         print(completion_message)
         print("=" * 60 + "\n")
 
-    # known_facts persists across questions
     return state
 
 
@@ -488,5 +489,84 @@ def await_user_action(state: GraphState) -> GraphState:
 
     # Store user choice in state for routing
     state["user_action"] = user_choice
+
+    return state
+
+
+def merge_ai_discoveries(state: GraphState) -> GraphState:
+    """
+    Helper function to merge AI discoveries into known facts.
+    This ensures that facts discovered during reasoning are available for subsequent questions.
+    """
+    ai_discoveries = state.get("ai_discovered_facts", [])
+    current_known = state["known_facts"]
+
+    # Add AI discoveries to known facts (avoid duplicates)
+    for discovery in ai_discoveries:
+        if discovery and discovery not in current_known:
+            current_known.append(discovery)
+
+    state["known_facts"] = current_known
+    # Clear AI discoveries since they're now part of known facts
+    state["ai_discovered_facts"] = []
+
+    return state
+
+
+def extract_question_facts_and_steps(state: GraphState) -> GraphState:
+    """
+    Extract new facts and illustration steps mentioned in the current question.
+    This is separate from AI discoveries and should be done when moving to a new question.
+    Uses a proper LangChain with Pydantic output parser for reliable results.
+    """
+    llm = initialize_llm()
+    if not llm:
+        return state
+
+    current_question_index = state["current_question_index"]
+    if current_question_index >= len(state["questions"]):
+        return state
+
+    current_question = state["questions"][current_question_index]
+
+    # Format current known facts and illustration steps for context
+    known_facts_text = (
+        format_facts_list(state["known_facts"])
+        if state["known_facts"]
+        else "Chưa có sự kiện nào"
+    )
+    illustration_steps_text = (
+        format_facts_list(state["illustration_steps"])
+        if state["illustration_steps"]
+        else "Chưa có bước vẽ hình nào"
+    )
+
+    try:
+        # Create and use the question extraction chain
+        extraction_chain = create_question_extraction_chain(llm)
+        extraction_data = extraction_chain.invoke(
+            {
+                "question": current_question,
+                "known_facts": known_facts_text,
+                "illustration_steps": illustration_steps_text,
+            }
+        )
+
+        # Add new facts to known_facts (avoid duplicates)
+        current_known = state["known_facts"]
+        for fact in extraction_data.new_facts:
+            if fact and fact.strip() and fact not in current_known:
+                current_known.append(fact)
+
+        # Add new illustration steps (avoid duplicates)
+        current_steps = state["illustration_steps"]
+        for step in extraction_data.new_illustration_steps:
+            if step and step.strip() and step not in current_steps:
+                current_steps.append(step)
+
+    except Exception as e:
+        # If extraction fails, log error but continue
+        print(f"⚠️ Warning: Failed to extract facts from question: {str(e)}")
+        pass
 
     return state
