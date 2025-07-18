@@ -62,6 +62,11 @@ class ApiGeometryTutor:
 
             # Reason and solve for the first question
             if parsed_state["questions"]:
+                # Extract facts and steps from the first question
+                from geometry_tutor.agents import extract_question_facts_and_steps
+
+                parsed_state = extract_question_facts_and_steps(parsed_state)
+
                 solved_state = reason_and_solve(parsed_state)
                 self.current_state = solved_state
             else:

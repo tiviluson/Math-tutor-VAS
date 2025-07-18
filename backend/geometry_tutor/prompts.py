@@ -13,13 +13,33 @@ class PromptTemplates:
     @staticmethod
     def get_parsing_prompt() -> str:
         """Template for parsing geometry problems."""
-        return """Bạn là một chuyên gia hình học. Hãy đọc bài toán sau và trích xuất tất cả thông tin hình học, 
-các sự kiện đã cho, các câu hỏi riêng biệt, và các bước vẽ hình.
+        return """Bạn là một chuyên gia hình học. Hãy đọc bài toán sau và thực hiện các nhiệm vụ:
 
-Các câu hỏi phải được sắp xếp theo thứ tự tuần tự đúng.
-Các câu hỏi phải được viết lại chính xác, không có sự thay đổi nào so với đề bài.
-Cả các sự kiện đã cho và câu hỏi phải được viết bằng tiếng Việt.
-Các bước vẽ hình phải được mô tả chi tiết, rõ ràng để học sinh có thể vẽ lại được.
+1. Tách phần bài toán chính (problem_statement_only) KHÔNG bao gồm (các) câu hỏi
+2. Trích xuất tất cả thông tin hình học (điểm, đường, hình)
+3. Xác định các sự kiện đã cho từ phần bài toán chính
+4. Xác định tất cả các câu hỏi riêng biệt theo thứ tự tuần tự
+5. Mô tả các bước vẽ hình cần thiết cho bài toán chính
+
+Yêu cầu quan trọng:
+- problem_statement_only phải chứa chỉ phần mô tả bài toán, loại bỏ hoàn toàn các câu hỏi
+- Các câu hỏi phải được sắp xếp theo thứ tự tuần tự đúng.
+- Các câu hỏi phải được viết lại chính xác, không có sự thay đổi nào so với đề bài
+- Các sự kiện (given_facts) và các bước vẽ hình (illustration_steps) CHỈ ĐẾN TỪ phần bài toán chính (problem_statement_only), không từ câu hỏi
+- Các bước vẽ hình phải chi tiết, rõ ràng để học sinh có thể vẽ lại được
+- Tất cả nội dung phải bằng tiếng Việt
+
+Ví dụ 1:
+Bài toán: Cho tam giác ABC vuông tại A có AB=3, AC=4. Gọi AH là đường cao của tam giác ABC (H là chân đường cao). a) Tính diện tích và chu vi của tam giác này. b) Chứng minh góc C < góc B. c) Tính độ dài đường trung tuyến AM của tam giác ABC.
+Return {{
+    "problem_statement_only": "Cho tam giác ABC vuông tại A có AB=3, AC=4. Gọi AH là đường cao của tam giác ABC (H là chân đường cao).",
+    "points": ["A", "B", "C", "H"],
+    "lines": ["AB", "AC", "BC", "AH"],
+    "shapes": ["tam giác"],
+    "given_facts": ["Tam giác ABC vuông tại A có AB=3, AC=4", "AH là đường cao của tam giác ABC", "H thuộc BC"],
+    "questions": ["Tính diện tích và chu vi của tam giác này.", "Chứng minh góc C < góc B", "Tính độ dài đường trung tuyến AM của tam giác ABC."],
+    "illustration_steps": ["Vẽ tam giác ABC vuông tại A có AB=3, AC=4", "Vẽ đường cao AH từ A đến BC", "Đánh dấu H là chân đường cao."]
+}}
 
 Bài toán: {problem}
 
@@ -280,6 +300,33 @@ Hãy trả lời câu hỏi của học sinh một cách:
 - Không tiết lộ hoàn toàn lời giải
 
 Trả về phản hồi hướng dẫn và khuyến khích cho học sinh."""
+
+    @staticmethod
+    def get_question_extraction_prompt() -> str:
+        """Template for extracting new facts and illustration steps from question text."""
+        return """Bạn là một chuyên gia hình học. Hãy phân tích câu hỏi sau và trích xuất các thông tin mới (nếu có):
+
+Câu hỏi: {question}
+
+Các sự kiện đã biết:
+{known_facts}
+
+Các bước vẽ hình đã có:
+{illustration_steps}
+
+Nhiệm vụ:
+1. Xác định các sự kiện mới được đề cập trong câu hỏi (ví dụ: "Gọi M là trung điểm AB", "Lấy điểm N trên đường thẳng CD", ...)
+2. Xác định các bước vẽ hình mới được yêu cầu (ví dụ: "Vẽ đường tròn tâm O", "Nối AB", ...)
+
+Yêu cầu:
+- Chỉ trích xuất thông tin HOÀN TOÀN MỚI mà câu hỏi đề cập
+- Các sự kiện mới (new_facts) KHÔNG được tương đương nhau. Nếu có lặp lại, hãy chỉ chọn trả về những sự kiện ngắn gọn hơn (ví dụ: ["Điểm M là trung điểm AB", "Điểm M là trung điểm AB"], chỉ trả về ["Điểm M là trung điểm AB"]; ["AB^2 = 25", "AB = 5"], chỉ trả về ["AB = 5"].)
+- KHÔNG lặp lại thông tin đã có trong danh sách sự kiện đã biết hoặc bước vẽ hình đã có
+- So sánh cẩn thận với danh sách hiện có để tránh trùng lặp
+- Nếu không có thông tin mới, trả về mảng rỗng
+- Thông tin phải rõ ràng và có thể sử dụng được
+
+{format_instructions}"""
 
 
 class HintPromptBuilder:
