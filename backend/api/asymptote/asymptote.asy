@@ -1,12 +1,17 @@
 
 import olympiad; import settings; size(600, 600);
-pair A = (0,0);
-pair B = (5,0);
-pair C = (0,3);
+pair B = (0,0);
+pair C = (4,0);
+pair A = (0,3);
+pair H = foot(A,B,C);
 
 draw(A--B--C--cycle);
-draw(rightanglemark(B,A,C,10));
+draw(A--H);
 
-label("$A$",A,SW);
-label("$B$",B,SE);
-label("$C$",C,N);
+label("$A$",A,N);
+label("$B$",B,SW);
+label("$C$",C,SE);
+label("$H$",H,S);
+
+draw(rightanglemark(B,A,C,10));
+draw(rightanglemark(A,H,C,10));
