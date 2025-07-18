@@ -4,8 +4,9 @@ Supports both text-based geometry problems and image uploads for problem extract
 """
 
 import uuid
+import time
 import base64
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 from datetime import datetime, timedelta
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
@@ -381,12 +382,12 @@ async def health_check():
 
 @app.post(
     "/sessions",
-    response_model=Dict[str, str | int],
+    response_model=Dict[str, Union[str, int]],
     dependencies=[Depends(check_environment)],
 )
 async def create_session(
     request: ProblemRequest, background_tasks: BackgroundTasks
-) -> Dict[str, str | int]:
+) -> Dict[str, Union[str, int]]:
     """
     Create a new tutoring session with a geometry problem.
 
@@ -452,15 +453,15 @@ async def create_session(
 
 
 @app.get("/status", response_model=SessionStatus)
-async def get_session_status(request: SessionRequest) -> SessionStatus:
+async def get_session_status(session_id: str) -> SessionStatus:
     """Get current status of a tutoring session."""
-    tutor = session_manager.get_session(request.session_id)
+    tutor = session_manager.get_session(session_id)
     if not tutor:
         raise HTTPException(status_code=404, detail="Session not found or expired")
 
     try:
         status = tutor.get_enhanced_status()
-        session_info = session_manager.get_session_info(request.session_id)
+        session_info = session_manager.get_session_info(session_id)
 
         if not status["success"]:
             raise HTTPException(status_code=400, detail=status["error"])
@@ -469,7 +470,7 @@ async def get_session_status(request: SessionRequest) -> SessionStatus:
             raise HTTPException(status_code=404, detail="Session info not found")
 
         return SessionStatus(
-            session_id=request.session_id,
+            session_id=session_id,
             success=status["success"],
             current_question_index=status["current_question_index"]
             + 1,  # Convert to 1-based for API
@@ -527,7 +528,6 @@ async def request_hint(request: SessionRequest) -> HintResponse:
             hint_level=hint_result["hint_level"],
             max_hints_reached=hint_result["max_hints_reached"],
         )
-
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to generate hint: {str(e)}"
@@ -593,9 +593,9 @@ async def validate_solution(request: ValidationRequest) -> ValidationResponse:
 
 
 @app.get("/solution", response_model=SolutionResponse)
-async def get_solution(request: SessionRequest) -> SolutionResponse:
+async def get_solution(session_id: str) -> SolutionResponse:
     """Get the complete solution for the current question and automatically move to the next question."""
-    tutor = session_manager.get_session(request.session_id)
+    tutor = session_manager.get_session(session_id)
     if not tutor:
         raise HTTPException(status_code=404, detail="Session not found or expired")
 
@@ -643,9 +643,9 @@ async def get_solution(request: SessionRequest) -> SolutionResponse:
 
 
 @app.get("/illustration", response_model=IllustrationResponse)
-async def get_illustration(request: SessionRequest) -> IllustrationResponse:
+async def get_illustration(session_id: str) -> IllustrationResponse:
     """Get a geometric illustration/visualization for the current problem."""
-    tutor = session_manager.get_session(request.session_id)
+    tutor = session_manager.get_session(session_id)
     if not tutor:
         raise HTTPException(status_code=404, detail="Session not found or expired")
 
@@ -664,7 +664,7 @@ async def get_illustration(request: SessionRequest) -> IllustrationResponse:
 
         # Call the get_visualization function
         b64_string_viz = get_visualization(
-            session_id=request.session_id,
+            session_id=session_id,
             problem=original_problem,
             student_drawing_steps=student_drawing_steps,
         )
@@ -761,6 +761,12 @@ async def list_active_sessions() -> Dict[str, Any]:
     return {"active_sessions": len(active_sessions), "sessions": active_sessions}
 
 
+@app.get("/test")
+async def test_endpoint():
+    """Simple test endpoint for debugging"""
+    return {"message": "Test endpoint working", "timestamp": time.time()}
+
+
 # Exception handlers
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):
@@ -775,6 +781,26 @@ async def general_exception_handler(request, exc):
         status_code=500,
         content={"error": f"Internal server error: {str(exc)}", "success": False},
     )
+
+
+# Request logging middleware for debugging
+@app.middleware("http")
+async def log_requests(request, call_next):
+    import time
+    start_time = time.time()
+    print(f"🔍 Incoming request: {request.method} {request.url}")
+    
+    try:
+        response = await call_next(request)
+        process_time = time.time() - start_time
+        print(f"✅ Response: {response.status_code} (took {process_time:.2f}s)")
+        return response
+    except Exception as e:
+        process_time = time.time() - start_time
+        print(f"❌ Request failed: {str(e)} (took {process_time:.2f}s)")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 # Server configuration

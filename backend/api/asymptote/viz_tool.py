@@ -6,9 +6,25 @@ from .viz_prompts import (
     prompt_get_geometry_reasoning,
 )
 
+# Load environment variables from .env file in backend directory
+from dotenv import load_dotenv
+import pathlib
+
+# Load .env from backend directory
+backend_dir = pathlib.Path(__file__).parent.parent.parent
+env_path = backend_dir / '.env'
+load_dotenv(env_path)
+
 GEMINI_MODEL = "gemini-2.0-flash"
 
-# genai.configure(api_key=GOOGLE_API_KEY)
+# Get API key from environment
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+if not GOOGLE_API_KEY:
+    print(f"Warning: GOOGLE_API_KEY not found. Trying to load from: {env_path}")
+    print(f"Environment variables: {[k for k in os.environ.keys() if 'GOOGLE' in k]}")
+    raise ValueError("GOOGLE_API_KEY environment variable is required for visualization")
+
+genai.configure(api_key=GOOGLE_API_KEY)
 config = {
     "temperature": 0.0,
     "top_p": 0.5,
@@ -99,38 +115,50 @@ class VizSolver:
 
         code_asy = self.clean_asy(self.asymptote_code)
 
-        with open("asymptote.asy", "w") as f:
+        # Get the current directory (asymptote module directory)
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # Write the Asymptote file in the asymptote directory
+        asy_file_path = os.path.join(current_dir, "asymptote.asy")
+        jpg_file_path = os.path.join(current_dir, "asymptote.jpg")
+        
+        with open(asy_file_path, "w") as f:
             f.write(code_asy)
 
         # Run the Asymptote command to generate a JPG
         try:
             result = subprocess.run(
-                ["asy", "-f", "jpg", "asymptote.asy"], capture_output=True, text=True
+                ["asy", "-f", "jpg", asy_file_path], 
+                capture_output=True, 
+                text=True,
+                cwd=current_dir  # Run in the asymptote directory
             )
-            with open("asymptote.jpg", "rb") as img_file:
-                self.b64_string_viz = base64.b64encode(img_file.read()).decode("utf-8")
+            
+            if result.returncode == 0:
+                # Convert the generated JPG to base64
+                if os.path.exists(jpg_file_path):
+                    with open(jpg_file_path, "rb") as img_file:
+                        self.b64_string_viz = base64.b64encode(img_file.read()).decode("utf-8")
+                else:
+                    self.code_err = "JPG file was not generated"
+                    print("Error: JPG file was not generated")
+                    return
+            else:
+                self.code_err = result.stderr
+                print("Asymptote Error:", result.stderr)
+                return
+                
         except Exception as e:
             self.code_err = str(e)
             print("Error running Asymptote command:", self.code_err)
             return
 
-        # Convert the generated JPG to base64
-        with open("asymptote.jpg", "rb") as img_file:
-            self.b64_string_viz = base64.b64encode(img_file.read()).decode("utf-8")
-
-        if result.returncode == 0:
+        # Cleanup files (optional)
+        if os.path.exists(asy_file_path):
+            # os.remove(asy_file_path)
             pass
-        else:
-            self.code_err = result.stderr
-            print("Error:", result.stderr)
-            return
-
-        if os.path.exists("asymptote.asy"):
-            # os.remove("asymptote.asy")
-            pass
-        # Delete the generated JPG after encoding
-        if os.path.exists("asymptote.jpg"):
-            # os.remove("asymptote.jpg")
+        if os.path.exists(jpg_file_path):
+            # os.remove(jpg_file_path)
             pass
 
 
