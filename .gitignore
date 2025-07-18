@@ -208,5 +208,9 @@ __marimo__/
 .DS_Store
 
 # Asymptote generated files
+*.asy
+*.jpg
+run.asy
+run.jpg
 asymptote.asy
 asymptote.jpg

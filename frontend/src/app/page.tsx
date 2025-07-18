@@ -58,6 +58,7 @@ export default function Home() {
   const [showQuestionModal, setShowQuestionModal] = useState(false);
   const [showKnowledgeModal, setShowKnowledgeModal] = useState(false);
   const [showVisualizationModal, setShowVisualizationModal] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
 
   // Initialize hooks
   const session = useTutorSession();
@@ -94,8 +95,7 @@ export default function Home() {
       if (response.success) {
         setMode('workspace');
         chatMessages.addInitialMessage(question);
-        // Load initial facts
-        await facts.getFacts();
+        // Facts will be loaded automatically by useFacts hook
       }
     } catch (error) {
       console.error('Failed to create session:', error);
@@ -175,11 +175,22 @@ export default function Home() {
           isUser: false,
         });
         
+        // If answer is correct, immediately refresh facts to show new proven results
+        if (isCorrect) {
+          await facts.refreshFacts(); // Refresh to update proven facts
+          chatMessages.addMessage({
+            text: "🎯 Kết quả đã được cập nhật vào phần 'Kết quả đã chứng minh'!",
+            isUser: false,
+          });
+        }
+        
         if (validationResponse.moved_to_next) {
           chatMessages.addMessage({
             text: "🎉 Chuyển sang câu hỏi tiếp theo!",
             isUser: false,
           });
+          // Also refresh facts when moving to next question
+          await facts.refreshFacts();
         }
       } else {
         chatMessages.addMessage({
@@ -207,11 +218,20 @@ export default function Home() {
           isUser: false,
         });
         
+        // Refresh facts after viewing solution as it might add new proven results
+        await facts.refreshFacts();
+        chatMessages.addMessage({
+          text: "📚 Kết quả đã được cập nhật vào phần 'Kết quả đã chứng minh'!",
+          isUser: false,
+        });
+        
         if (solutionResponse.moved_to_next) {
           chatMessages.addMessage({
             text: "➡️ Đã chuyển sang câu hỏi tiếp theo.",
             isUser: false,
           });
+          // Also refresh facts when moving to next question
+          await facts.refreshFacts();
         }
       } else {
         chatMessages.addMessage({
@@ -230,36 +250,43 @@ export default function Home() {
 
   if (mode === 'ask') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col items-center justify-center p-4">
-        <div className="text-center mb-12">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-100 flex flex-col items-center justify-center p-4">
+        <div className="text-center mb-12 animate-fade-in">
           <h1 className="text-5xl font-bold text-gray-900 mb-3 flex items-center justify-center gap-3">
-            <Pentagon className="h-12 w-12 text-blue-600" />
-            AI Geometry Tutor
+            <div className="relative">
+              <Pentagon className="h-12 w-12 text-blue-600 transition-all duration-300 hover:scale-110 hover:rotate-12" />
+              <div className="absolute inset-0 h-12 w-12 bg-blue-600/20 rounded-full animate-ping"></div>
+            </div>
+            <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
+              AI Geometry Tutor
+            </span>
           </h1>
           <p className="text-gray-600 text-xl">
-            Trợ lý AI thông minh giúp bạn học hình học hiệu quả
+            Trợ lý AI thông minh giúp bạn học hình học hiệu quả ✨
           </p>
         </div>
 
         <div className="w-full max-w-4xl">
-          <Card className="relative">
+          <Card className="relative transition-all duration-300 hover:shadow-2xl hover:scale-[1.02] bg-gradient-to-br from-white/90 to-blue-50/50 backdrop-blur-sm border-white/20">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <BookOpen className="h-5 w-5" />
-                  Nhập bài toán hình học
+                  <BookOpen className="h-5 w-5 text-blue-600" />
+                  <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                    Nhập bài toán hình học
+                  </span>
                 </div>
                 <Button 
                   variant="outline" 
                   size="sm"
                   onClick={() => document.getElementById('file-upload')?.click()}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 hover:bg-blue-50 border-blue-200 text-blue-700 transition-all duration-200 hover:scale-105"
                 >
                   <Upload className="h-4 w-4" />
                   Upload file
                 </Button>
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-slate-600">
                 Mô tả chi tiết bài toán bạn cần giải quyết hoặc upload file đề bài
               </CardDescription>
             </CardHeader>
@@ -314,11 +341,13 @@ export default function Home() {
   return (
     <div className="h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="bg-white/90 backdrop-blur-md border-b border-slate-200/60 p-4 flex-shrink-0 shadow-sm">
+      <div className="bg-gradient-to-r from-white/95 via-white/90 to-white/95 backdrop-blur-md border-b border-white/30 p-4 flex-shrink-0 shadow-lg">
         <div className="text-center">
-          <h1 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center justify-center gap-2">
-            <Pentagon className="h-5 w-5 md:h-6 md:w-6 text-blue-600" />
-            AI Geometry Tutor
+          <h1 className="text-xl md:text-2xl font-bold flex items-center justify-center gap-2">
+            <Pentagon className="h-5 w-5 md:h-6 md:w-6 text-blue-600 transition-all duration-300 hover:scale-110 hover:rotate-12" />
+            <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
+              AI Geometry Tutor
+            </span>
           </h1>
         </div>
       </div>
@@ -328,7 +357,7 @@ export default function Home() {
         {/* Left Side - Control Cards */}
         <div className="w-[45%] flex flex-col gap-4">
           {/* Visualization Card */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-slate-200/60 p-4 h-[60%]">
+          <div className="bg-gradient-to-br from-white/90 to-purple-50/80 backdrop-blur-sm rounded-2xl shadow-lg border border-purple-200/60 p-4 h-[60%] transition-all duration-300 hover:shadow-xl hover:scale-[1.02]">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
                 <Eye className="h-5 w-5 text-purple-600" />
@@ -377,7 +406,9 @@ export default function Home() {
                   <img 
                     src={`data:image/jpeg;base64,${visualization.plotData}`}
                     alt="Geometric Visualization"
-                    className="max-w-full max-h-full object-contain rounded-lg shadow-md"
+                    className="max-w-full max-h-full object-contain rounded-lg shadow-md cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-lg"
+                    onClick={() => setShowImageModal(true)}
+                    title="Click để phóng to"
                   />
                 ) : visualization.isLoading ? (
                   <div className="text-center text-blue-600">
@@ -421,22 +452,77 @@ export default function Home() {
             )}
           </div>
 
-          {/* Additional Card - Placeholder for future content */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-slate-200/60 p-4 h-[40%]">
-            <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
-              <BookOpen className="h-5 w-5 text-blue-600" />
-              Công cụ học tập
-            </h3>
-            <div className="space-y-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowKnowledgeModal(true)}
-                className="w-full bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300"
-              >
-                <BookOpen className="mr-2 h-4 w-4" />
-                Kiến thức
-              </Button>
+          {/* Known Facts Card */}
+          <div className="bg-gradient-to-br from-white/90 to-emerald-50/80 backdrop-blur-sm rounded-2xl shadow-lg border border-emerald-200/60 p-4 h-[40%] transition-all duration-300 hover:shadow-xl hover:scale-[1.02]">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-emerald-600" />
+                Kết quả đã chứng minh
+              </h3>
+              <div className="flex gap-2">
+                {facts.isLoading && (
+                  <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                )}
+                {facts.facts.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowKnowledgeModal(true)}
+                    className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                  >
+                    <BookOpen className="mr-1 h-4 w-4" />
+                    Xem tất cả
+                  </Button>
+                )}
+              </div>
+            </div>
+            
+            {/* Facts Display Area */}
+            <div className="h-[calc(100%-60px)] overflow-y-auto scrollbar-custom">
+              {facts.facts.length > 0 ? (
+                <div className="space-y-2">
+                  {facts.facts.slice(0, 5).map((fact, index) => (
+                    <div 
+                      key={index} 
+                      className="text-sm bg-gradient-to-r from-emerald-50 to-emerald-100 p-3 rounded-lg border-l-4 border-emerald-400 shadow-sm animate-fade-in"
+                      style={{ animationDelay: `${index * 0.1}s` }}
+                    >
+                      <div className="flex items-start gap-2">
+                        <CheckCircle className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                        <span className="text-slate-700">{fact}</span>
+                      </div>
+                    </div>
+                  ))}
+                  {facts.facts.length > 5 && (
+                    <div className="text-center pt-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowKnowledgeModal(true)}
+                        className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                      >
+                        +{facts.facts.length - 5} kết quả khác
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : facts.error ? (
+                <div className="text-center text-red-500 h-full flex items-center justify-center">
+                  <div>
+                    <HelpCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm font-medium">Lỗi khi tải dữ liệu</p>
+                    <p className="text-xs text-slate-500 mt-1">{facts.error}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center text-slate-400 h-full flex items-center justify-center">
+                  <div>
+                    <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm font-medium">Chưa có kết quả nào được chứng minh</p>
+                    <p className="text-xs mt-1">Các kết quả sẽ xuất hiện khi bạn giải bài</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -453,11 +539,11 @@ export default function Home() {
             ref={chatContainerRef}
           >
             {chatMessages.messages.map((message, index) => (
-              <div key={index} className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-sm md:max-w-lg lg:max-w-xl xl:max-w-2xl px-4 py-3 ${
+              <div key={index} className={`flex ${message.isUser ? 'justify-end' : 'justify-start'} animate-fade-in`}>
+                <div className={`max-w-sm md:max-w-lg lg:max-w-xl xl:max-w-2xl px-4 py-3 transition-all duration-300 hover:scale-105 ${
                   message.isUser 
-                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-2xl rounded-br-none shadow-lg' 
-                    : 'bg-white text-slate-800 shadow-md border border-slate-200/60 rounded-2xl rounded-bl-none'
+                    ? 'bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 text-white rounded-2xl rounded-br-none shadow-lg hover:shadow-xl' 
+                    : 'bg-gradient-to-r from-white to-gray-50 text-slate-800 shadow-md border border-slate-200/60 rounded-2xl rounded-bl-none hover:shadow-lg'
                 }`}>
                   <MessageRenderer 
                     content={message.text} 
@@ -469,17 +555,20 @@ export default function Home() {
             
             {chatMessages.messages.length === 0 && (
               <div className="flex items-center justify-center h-64">
-                <div className="text-center">
-                  <Pentagon className="h-16 w-16 mx-auto mb-4 text-slate-300" />
-                  <p className="text-slate-600 text-lg mb-2">Chào mừng đến với AI Geometry Tutor!</p>
-                  <p className="text-slate-400 text-sm">Hãy bắt đầu cuộc hành trình học tập của bạn</p>
+                <div className="text-center animate-fade-in">
+                  <div className="relative">
+                    <Pentagon className="h-16 w-16 mx-auto mb-4 text-blue-400 animate-pulse" />
+                    <div className="absolute inset-0 h-16 w-16 mx-auto mb-4 bg-blue-400/20 rounded-full animate-ping"></div>
+                  </div>
+                  <p className="text-slate-600 text-lg mb-2 font-medium">Chào mừng đến với AI Geometry Tutor!</p>
+                  <p className="text-slate-400 text-sm">Hãy bắt đầu cuộc hành trình học tập của bạn ✨</p>
                 </div>
               </div>
             )}
           </div>
 
           {/* Input Area */}
-          <div className="border-t border-slate-200/60 bg-white/70 backdrop-blur-md p-4 flex-shrink-0 shadow-lg rounded-3xl">
+          <div className="border-t border-white/30 bg-white/80 backdrop-blur-xl p-4 flex-shrink-0 shadow-2xl rounded-3xl border border-white/20 transition-all duration-300 hover:bg-white/90">
             {isWaitingForValidation ? (
               // Validation Input
               <div className="flex gap-2 items-center">
@@ -520,7 +609,7 @@ export default function Home() {
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowQuestionModal(true)}
-                    className="rounded-full hover:bg-blue-50 text-blue-600 hover:text-blue-700 h-12 w-12"
+                    className="rounded-full hover:bg-blue-50 text-blue-600 hover:text-blue-700 h-12 w-12 transition-all duration-200 hover:scale-110 hover:shadow-lg"
                     title="Câu hỏi"
                   >
                     <HelpCircle className="h-6 w-6" />
@@ -531,7 +620,7 @@ export default function Home() {
                     size="sm"
                     onClick={handleGetHint}
                     disabled={hint.isLoading}
-                    className="rounded-full hover:bg-yellow-50 text-yellow-600 hover:text-yellow-700 h-12 w-12"
+                    className="rounded-full hover:bg-yellow-50 text-yellow-600 hover:text-yellow-700 h-12 w-12 transition-all duration-200 hover:scale-110 hover:shadow-lg"
                     title="Gợi ý"
                   >
                     {hint.isLoading ? (
@@ -546,7 +635,7 @@ export default function Home() {
                     size="sm"
                     onClick={() => setIsWaitingForValidation(true)}
                     disabled={!session.sessionId}
-                    className="rounded-full hover:bg-green-50 text-green-600 hover:text-green-700 h-12 w-12"
+                    className="rounded-full hover:bg-green-50 text-green-600 hover:text-green-700 h-12 w-12 transition-all duration-200 hover:scale-110 hover:shadow-lg"
                     title="Kiểm tra"
                   >
                     <CheckCircle className="h-6 w-6" />
@@ -557,7 +646,7 @@ export default function Home() {
                     size="sm"
                     onClick={handleGetSolution}
                     disabled={solution.isLoading}
-                    className="rounded-full hover:bg-orange-50 text-orange-600 hover:text-orange-700 h-12 w-12"
+                    className="rounded-full hover:bg-orange-50 text-orange-600 hover:text-orange-700 h-12 w-12 transition-all duration-200 hover:scale-110 hover:shadow-lg"
                     title="Lời giải"
                   >
                     {solution.isLoading ? (
@@ -596,12 +685,27 @@ export default function Home() {
         
       {/* Disclaimer */}
       <div className="px-4 py-1 text-center">
-        <p className="text-xs text-black">
+        <p className="text-xs text-slate-400/60">
           Đáp án từ AI Tutor chỉ mang tính tham khảo, hãy kiểm tra lại để chắc chắn.
         </p>
       </div>
 
       {/* Modals */}
+      {/* Simple Image Modal - Full screen image display */}
+      {showImageModal && visualization.plotData && (
+        <div 
+          className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50 cursor-pointer"
+          onClick={() => setShowImageModal(false)}
+        >
+          <img 
+            src={`data:image/jpeg;base64,${visualization.plotData}`}
+            alt="Geometric Visualization - Full Size"
+            className="max-w-full max-h-full object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
       {/* Question Modal */}
       {showQuestionModal && (
         <div className="fixed inset-0 bg-white/20 backdrop-blur-md flex items-center justify-center p-4 z-50">
@@ -628,30 +732,52 @@ export default function Home() {
       {/* Knowledge Modal */}
       {showKnowledgeModal && (
         <div className="fixed inset-0 bg-white/20 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden">
-            <div className="flex justify-between items-center p-4 border-b">
-              <h3 className="text-lg font-semibold">Kiến thức</h3>
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden shadow-2xl">
+            <div className="flex justify-between items-center p-4 border-b bg-gradient-to-r from-emerald-50 to-emerald-100">
+              <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-emerald-600" />
+                Tất cả kết quả đã chứng minh
+              </h3>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowKnowledgeModal(false)}
+                className="hover:bg-emerald-100"
               >
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            <div className="p-4 overflow-y-auto">
+            <div className="p-4 overflow-y-auto max-h-[60vh]">
               <div className="space-y-3">
                 {facts.facts.length === 0 ? (
-                  <p className="text-slate-500 text-center py-8">Chưa có kiến thức nào</p>
+                  <div className="text-center py-12">
+                    <BookOpen className="h-16 w-16 mx-auto mb-4 text-slate-300" />
+                    <p className="text-slate-500 text-lg font-medium">Chưa có kết quả nào được chứng minh</p>
+                    <p className="text-slate-400 text-sm mt-2">Các kết quả sẽ xuất hiện khi bạn giải bài</p>
+                  </div>
                 ) : (
                   facts.facts.map((fact, index) => (
-                    <div key={index} className="text-sm bg-emerald-50 p-3 rounded-lg border-l-4 border-emerald-400 shadow-sm">
-                      {fact}
+                    <div 
+                      key={index} 
+                      className="text-sm bg-gradient-to-r from-emerald-50 to-emerald-100 p-4 rounded-lg border-l-4 border-emerald-400 shadow-sm animate-fade-in"
+                      style={{ animationDelay: `${index * 0.05}s` }}
+                    >
+                      <div className="flex items-start gap-2">
+                        <CheckCircle className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                        <span className="text-slate-700 leading-relaxed">{fact}</span>
+                      </div>
                     </div>
                   ))
                 )}
               </div>
             </div>
+            {facts.facts.length > 0 && (
+              <div className="p-4 border-t bg-slate-50 text-center">
+                <p className="text-xs text-slate-500">
+                  Tổng cộng {facts.facts.length} kết quả đã được chứng minh
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
