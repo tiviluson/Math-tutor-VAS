@@ -1,30 +1,26 @@
 
 import olympiad; import settings; size(600, 600);
 pair O = (0,0);
-real R = 2;
-pair A = 2*R*dir(0);
+real R = 50;
+pair A = (2*R,0);
 pair B = tangent(A, O, R, 1);
 pair C = tangent(A, O, R, 2);
 pair D = -B;
-pair E = intersectionpoint(A--D, circle(O,R));
+pair E = intersectionpoints(A--D, Circle(O,R))[0];
 pair H = intersectionpoint(B--C, A--O);
 
-draw(circle(O, R));
-draw(A--B);
-draw(A--C);
-draw(B--D);
+draw(Circle(O, R));
+draw(A--B--O--C--cycle);
 draw(A--D);
 draw(B--C);
-draw(B--E);
-draw(E--D);
-draw(A--H);
-draw(H--E);
-draw(D--H);
+draw(A--O);
+draw(O--D);
+draw(C--D);
 
-label("$O$", O, S);
-label("$A$", A, E);
-label("$B$", B, NW);
-label("$C$", C, NE);
-label("$D$", D, SW);
-label("$E$", E, SE);
-label("$H$", H, S);
+label("$O$", O, SW);
+label("$A$", A, N);
+label("$B$", B, N);
+label("$C$", C, S);
+label("$D$", D, S);
+label("$E$", E, NW);
+label("$H$", H, SE);
