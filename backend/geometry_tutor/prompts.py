@@ -325,6 +325,7 @@ Yêu cầu:
 - So sánh cẩn thận với danh sách hiện có để tránh trùng lặp
 - Nếu không có thông tin mới, trả về mảng rỗng
 - Thông tin phải rõ ràng và có thể sử dụng được
+- Các sự kiện bắt đầu bằng "Chứng minh" hoặc "Tính" là các sự kiện chưa được biết và không được xuất hiện trong new_facts.
 
 {format_instructions}"""
 
