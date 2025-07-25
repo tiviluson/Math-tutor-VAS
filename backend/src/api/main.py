@@ -19,9 +19,9 @@ import uvicorn
 import sys
 import os
 
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from geometry_tutor.llm_utils import setup_environment
+from src.geometry_tutor.llm_utils import setup_environment
 from .tutor import ApiGeometryTutor
 from .asymptote.viz_tool import get_visualization
 
@@ -163,7 +163,7 @@ async def process_image_to_text(image_b64: str) -> str:
             raise ValueError(f"Invalid base64 image: {decode_error}")
 
         # Initialize LLM for vision processing
-        from geometry_tutor.llm_utils import initialize_llm
+        from src.geometry_tutor.llm_utils import initialize_llm
 
         llm = initialize_llm()
 
@@ -219,7 +219,7 @@ Yêu cầu:
                 response_text = str(response_text)
 
             # Try to parse JSON response
-            from geometry_tutor.llm_utils import safe_json_parse
+            from src.geometry_tutor.llm_utils import safe_json_parse
 
             result = safe_json_parse(response_text)
 

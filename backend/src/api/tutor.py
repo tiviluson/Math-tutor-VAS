@@ -7,10 +7,10 @@ import time
 from typing import Dict, Any, Optional, List
 from langchain_core.runnables import RunnableConfig
 
-from geometry_tutor.core import GraphState, create_initial_state
-from geometry_tutor.graph import create_geometry_tutor_graph
-from geometry_tutor.llm_utils import setup_environment
-from geometry_tutor.agents import (
+from src.geometry_tutor.core import GraphState, create_initial_state
+from src.geometry_tutor.graph import create_geometry_tutor_graph
+from src.geometry_tutor.llm_utils import setup_environment
+from src.geometry_tutor.agents import (
     parse_problem,
     reason_and_solve,
     generate_hint,
@@ -63,7 +63,7 @@ class ApiGeometryTutor:
             # Reason and solve for the first question
             if parsed_state["questions"]:
                 # Extract facts and steps from the first question
-                from geometry_tutor.agents import extract_question_facts_and_steps
+                from src.geometry_tutor.agents import extract_question_facts_and_steps
 
                 parsed_state = extract_question_facts_and_steps(parsed_state)
 
