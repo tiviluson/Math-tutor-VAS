@@ -1,15 +1,12 @@
 """
-Enhanced GeometryTutor for API usage.
-This version provides non-interactive methods for API integration.
+API GeometryTutor for non-interactive programmatic access.
+Provides REST API compatible methods for tutoring interactions.
 """
 
-import time
 from typing import Dict, Any, Optional, List
-from langchain_core.runnables import RunnableConfig
 
+from src.geometry_tutor.base_tutor import BaseGeometryTutor
 from src.geometry_tutor.core import GraphState, create_initial_state
-from src.geometry_tutor.graph import create_geometry_tutor_graph
-from src.geometry_tutor.llm_utils import setup_environment
 from src.geometry_tutor.agents import (
     parse_problem,
     reason_and_solve,
@@ -20,22 +17,15 @@ from src.geometry_tutor.agents import (
 )
 
 
-class ApiGeometryTutor:
+class ApiGeometryTutor(BaseGeometryTutor):
     """
-    Enhanced GeometryTutor class specifically designed for API usage.
+    GeometryTutor class specifically designed for API usage.
     Provides non-interactive methods for programmatic access.
     """
 
     def __init__(self):
-        # Setup environment and check API keys
-        if not setup_environment():
-            raise RuntimeError(
-                "Environment setup incomplete. Please check your API key configuration."
-            )
-
-        self.graph = create_geometry_tutor_graph()
-        self.current_state: Optional[GraphState] = None
-        self.thread_id: Optional[str] = None
+        # Use strict environment (raise error on setup failure)
+        super().__init__(strict_environment=True)
 
     def start_problem(self, problem_text: str) -> Dict[str, Any]:
         """
@@ -51,7 +41,7 @@ class ApiGeometryTutor:
         initial_state = create_initial_state(problem_text)
 
         # Generate a unique thread ID for this session
-        self.thread_id = f"api_session_{int(time.time())}"
+        self.thread_id = self._create_thread_id("api_session")
 
         try:
             # Parse the problem
@@ -89,8 +79,9 @@ class ApiGeometryTutor:
 
     def get_status(self) -> Dict[str, Any]:
         """Get the current status of the tutoring session."""
-        if not self.current_state:
-            return {"success": False, "error": "No active session"}
+        basic_status = self.get_basic_status()
+        if not basic_status["success"]:
+            return basic_status
 
         try:
             current_question = ""
@@ -101,19 +92,18 @@ class ApiGeometryTutor:
                     self.current_state["current_question_index"]
                 ]
 
-            return {
-                "success": True,
-                "current_question_index": self.current_state["current_question_index"]
-                + 1,
-                "total_questions": len(self.current_state["questions"]),
+            status = basic_status.copy()
+            status.update({
+                "current_question_index": self.current_state["current_question_index"] + 1,
                 "current_question": current_question,
                 "hint_level": self.current_state["hint_level"],
                 "hints_used": len(self.current_state["generated_hints"]),
                 "is_validated": self.current_state["is_validated"],
-                "session_complete": self.current_state["session_complete"],
                 "known_facts": self.current_state["known_facts"],
                 "illustration_steps": self.current_state.get("illustration_steps", []),
-            }
+            })
+
+            return status
 
         except Exception as e:
             return {"success": False, "error": f"Error getting status: {str(e)}"}
@@ -188,7 +178,7 @@ class ApiGeometryTutor:
                     "validation_score", 85 if is_correct else 45
                 )
 
-            # Simple parsing of the feedback (in real implementation, this would be more structured)
+            # Simple parsing of the feedback
             feedback = final_answer
 
             # Determine message type based on input type and validation result
@@ -240,13 +230,6 @@ class ApiGeometryTutor:
             return {"success": False, "error": "No active session"}
 
         try:
-            # Check if current question is validated
-            # if not self.current_state.get("is_validated", False):
-            #     return {
-            #         "success": False,
-            #         "error": "Current question must be validated before moving to next",
-            #     }
-
             # Move to next question
             next_state = move_to_next_question(self.current_state)
 
@@ -303,11 +286,6 @@ class ApiGeometryTutor:
                 "success": False,
                 "error": f"Error getting current question: {str(e)}",
             }
-
-    def reset_session(self):
-        """Reset the current session."""
-        self.current_state = None
-        self.thread_id = None
 
     def get_enhanced_status(self) -> Dict[str, Any]:
         """Get enhanced status including original problem, solved questions, and current solution if validated."""

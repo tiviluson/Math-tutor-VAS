@@ -22,7 +22,7 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from src.geometry_tutor.llm_utils import setup_environment
-from .tutor import ApiGeometryTutor
+from .api_tutor import ApiGeometryTutor
 from .asymptote.viz_tool import get_visualization
 
 
