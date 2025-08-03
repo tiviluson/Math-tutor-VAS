@@ -12,8 +12,7 @@ from .routes import health, sessions, tutoring, visualization
 # Import middleware setup functions
 from .middleware import setup_cors, setup_error_handlers, setup_request_logging
 
-# Import dependencies
-from .dependencies import check_environment
+# Dependencies are used in route modules
 
 
 def create_app() -> FastAPI:
