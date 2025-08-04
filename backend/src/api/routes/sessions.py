@@ -3,7 +3,7 @@ Session management endpoints.
 """
 
 from typing import Dict, Any, Union
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 
 from ..models.requests import ProblemRequest, SessionRequest
 from ..models.responses import SessionStatus
@@ -19,8 +19,8 @@ router = APIRouter()
 async def create_session(
     request: ProblemRequest, 
     background_tasks: BackgroundTasks,
-    session_service=get_session_service(),
-    tutor_service=get_tutor_service()
+    session_service=Depends(get_session_service),
+    tutor_service=Depends(get_tutor_service)
 ) -> Dict[str, Union[str, int]]:
     """
     Create a new tutoring session with a geometry problem.
@@ -83,7 +83,7 @@ async def create_session(
 @router.get("/status", response_model=SessionStatus)
 async def get_session_status(
     session_id: str,
-    session_service=get_session_service()
+    session_service=Depends(get_session_service)
 ) -> SessionStatus:
     """Get current status of a tutoring session."""
     tutor = session_service.get_session(session_id)
@@ -130,7 +130,7 @@ async def get_session_status(
 @router.delete("/sessions")
 async def delete_session(
     request: SessionRequest,
-    session_service=get_session_service()
+    session_service=Depends(get_session_service)
 ):
     """Delete a tutoring session."""
     result = session_service.delete_session(request.session_id)
@@ -143,7 +143,7 @@ async def delete_session(
 
 @router.get("/sessions")
 async def list_active_sessions(
-    session_service=get_session_service()
+    session_service=Depends(get_session_service)
 ) -> Dict[str, Any]:
     """List all active sessions (for debugging/monitoring)."""
     return session_service.list_active_sessions()
