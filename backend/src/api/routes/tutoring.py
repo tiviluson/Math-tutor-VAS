@@ -11,10 +11,9 @@ from ..dependencies import get_session_service
 router = APIRouter()
 
 
-@router.post("/hint", response_model=HintResponse)
+@router.get("/hint", response_model=HintResponse)
 async def request_hint(
-    session_id: str,
-    session_service=Depends(get_session_service)
+    session_id: str, session_service=Depends(get_session_service)
 ) -> HintResponse:
     """Request a hint for the current question."""
     tutor = session_service.get_session(session_id)
