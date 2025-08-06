@@ -5,7 +5,7 @@ Session management endpoints.
 from typing import Dict, Any, Union
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 
-from ..models.requests import ProblemRequest, SessionRequest
+from ..models.requests import ProblemRequest
 from ..models.responses import SessionStatus
 from ..dependencies import get_session_service, get_tutor_service
 
@@ -127,13 +127,13 @@ async def get_session_status(
         )
 
 
-@router.delete("/sessions")
+@router.delete("/sessions/{session_id}")
 async def delete_session(
-    request: SessionRequest,
+    session_id: str,
     session_service=Depends(get_session_service)
 ):
     """Delete a tutoring session."""
-    result = session_service.delete_session(request.session_id)
+    result = session_service.delete_session(session_id)
     
     if not result["success"]:
         raise HTTPException(status_code=404, detail=result["error"])

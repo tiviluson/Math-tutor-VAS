@@ -4,7 +4,7 @@ Tutoring interaction endpoints.
 
 from fastapi import APIRouter, HTTPException, Depends
 
-from ..models.requests import ValidationRequest, SessionRequest
+from ..models.requests import ValidationRequest
 from ..models.responses import HintResponse, ValidationResponse, SolutionResponse
 from ..dependencies import get_session_service
 
@@ -13,11 +13,11 @@ router = APIRouter()
 
 @router.post("/hint", response_model=HintResponse)
 async def request_hint(
-    request: SessionRequest,
+    session_id: str,
     session_service=Depends(get_session_service)
 ) -> HintResponse:
     """Request a hint for the current question."""
-    tutor = session_service.get_session(request.session_id)
+    tutor = session_service.get_session(session_id)
     if not tutor:
         raise HTTPException(status_code=404, detail="Session not found or expired")
 
@@ -57,8 +57,7 @@ async def request_hint(
 
 @router.post("/validate", response_model=ValidationResponse)
 async def validate_solution(
-    request: ValidationRequest,
-    session_service=Depends(get_session_service)
+    request: ValidationRequest, session_service=Depends(get_session_service)
 ) -> ValidationResponse:
     """Validate a student's solution for the current question and automatically move to next if correct."""
     if not request.user_input:
@@ -120,8 +119,7 @@ async def validate_solution(
 
 @router.get("/solution", response_model=SolutionResponse)
 async def get_solution(
-    session_id: str,
-    session_service=Depends(get_session_service)
+    session_id: str, session_service=Depends(get_session_service)
 ) -> SolutionResponse:
     """Get the complete solution for the current question and automatically move to the next question."""
     tutor = session_service.get_session(session_id)

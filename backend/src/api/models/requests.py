@@ -31,5 +31,3 @@ class ValidationRequest(BaseModel):
     )
 
 
-class SessionRequest(BaseModel):
-    session_id: str = Field(..., description="Session ID from problem creation")

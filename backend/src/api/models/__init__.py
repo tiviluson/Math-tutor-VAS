@@ -4,8 +4,7 @@ API models package for request and response data structures.
 
 from .requests import (
     ProblemRequest,
-    ValidationRequest,
-    SessionRequest
+    ValidationRequest
 )
 
 from .responses import (
@@ -20,8 +19,7 @@ from .responses import (
 __all__ = [
     # Request models
     "ProblemRequest",
-    "ValidationRequest", 
-    "SessionRequest",
+    "ValidationRequest",
     # Response models
     "SessionStatus",
     "ApiResponse",
