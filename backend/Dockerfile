@@ -1,4 +1,6 @@
 # Multi-stage Dockerfile for AI Geometry Tutor Backend with Asymptote support
+# Optimized for the new src/ directory structure
+
 # Stage 1: Build dependencies
 FROM python:3.11-slim AS builder
 
@@ -33,7 +35,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/opt/venv/bin:$PATH" \
     ASYMPTOTE_TEXPATH="/usr/bin" \
-    ASYMPTOTE_MAGICKPATH="/usr/bin"
+    ASYMPTOTE_MAGICKPATH="/usr/bin" \
+    PYTHONPATH="/app"
 
 # Install runtime dependencies for Asymptote
 ARG DEBIAN_FRONTEND=noninteractive
@@ -58,24 +61,20 @@ COPY --from=builder /opt/venv /opt/venv
 # Set working directory
 WORKDIR /app
 
-# Create necessary directory structure and __init__.py files
-RUN mkdir -p /app/api/asymptote && \
-    touch /app/api/asymptote/__init__.py
+# Copy application code with new structure
+COPY src/ /app/src/
+COPY scripts/ /app/scripts/
+COPY notebooks/ /app/notebooks/
 
-# Copy application code
-COPY api/__init__.py /app/api/
-COPY api/main.py /app/api/
-COPY api/tutor.py /app/api/
-
-COPY api/asymptote/viz_tool.py /app/api/asymptote/
-COPY api/asymptote/viz_prompts.py /app/api/asymptote/
-COPY api/asymptote/olympiad.asy /app/
-
-COPY geometry_tutor /app/geometry_tutor
-COPY run_api_server.py /app/
+# Create necessary directories
+RUN mkdir -p /tmp/asymptote
 
 # Expose port
 EXPOSE 8000
 
-# Default command
-CMD ["python", "run_api_server.py", "--host", "0.0.0.0", "--port", "8000"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Default command using the new script location
+CMD ["python", "scripts/run_api_server.py", "--host", "0.0.0.0", "--port", "8000"]

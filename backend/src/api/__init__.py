@@ -2,6 +2,5 @@
 API package initialization.
 """
 
-from .main import app, create_app, run_server
-
+# Lazy imports to avoid dependency issues during development
 __all__ = ["app", "create_app", "run_server"]
